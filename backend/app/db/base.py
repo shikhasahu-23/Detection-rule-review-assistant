@@ -1,4 +1,4 @@
-import sqlalchemy as sa
+import sqlalchemy as sa  # noqa: I001
 
 
 NAMING_CONVENTION = {
