@@ -30,7 +30,7 @@ class NvdConnector(IntelConnector):
             raise ValueError(f"Unsupported NVD configuration keys: {', '.join(sorted(unknown))}")
         api_key = config.get("api_key")
         if api_key is not None and not isinstance(api_key, str):
-            raise ValueError("NVD api_key must be a string")
+            raise TypeError("NVD api_key must be a string")
         page_size = config.get("results_per_page", 2000)
         if not isinstance(page_size, int) or isinstance(page_size, bool) or not 1 <= page_size <= 2000:
             raise ValueError("NVD results_per_page must be between 1 and 2000")
@@ -64,7 +64,7 @@ class NvdConnector(IntelConnector):
             vulnerabilities = payload.get("vulnerabilities")
             total_results = payload.get("totalResults")
             if not isinstance(vulnerabilities, list) or not isinstance(total_results, int):
-                raise ValueError("NVD response is missing pagination metadata or vulnerabilities")
+                raise TypeError("NVD response is missing pagination metadata or vulnerabilities")
             self._total_results = total_results
             self._last_success_at = datetime.now(UTC).isoformat()
             for item in vulnerabilities:
@@ -84,11 +84,11 @@ class NvdConnector(IntelConnector):
         published = cve.get("published")
         last_modified = cve.get("lastModified")
         try:
-            observed_at = datetime.fromisoformat(published.replace("Z", "+00:00")) if isinstance(published, str) else None
+            observed_at = datetime.fromisoformat(published) if isinstance(published, str) else None
         except ValueError:
             observed_at = None
         try:
-            modified_at = datetime.fromisoformat(last_modified.replace("Z", "+00:00")) if isinstance(last_modified, str) else None
+            modified_at = datetime.fromisoformat(last_modified) if isinstance(last_modified, str) else None
         except ValueError:
             modified_at = None
         payload = dict(raw_record)
