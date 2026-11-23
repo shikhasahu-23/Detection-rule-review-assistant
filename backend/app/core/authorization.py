@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from typing import Annotated
 from enum import StrEnum
 from uuid import UUID
 
@@ -39,7 +40,7 @@ def require_roles(*allowed_roles: Role):
         raise ValueError("At least one allowed role is required")
 
     def authorize(
-        principal: Principal = Depends(get_current_principal),
+        principal: Annotated[Principal, Depends(get_current_principal)],
     ) -> Principal:
         if principal.role not in allowed_roles:
             raise HTTPException(
