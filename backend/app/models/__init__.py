@@ -1,8 +1,14 @@
-from app.models.identity import Organization, TeamMembership, User
-from app.models.intelligence import IntelEvidence, IntelRecord, IntelSource, IngestionRun
 from app.models.audit import AuditEvent
+from app.models.identity import Organization, TeamMembership, User
+from app.models.intelligence import IngestionRun, IntelEvidence, IntelRecord, IntelSource
 
 __all__ = [
-    "AuditEvent", "IntelEvidence", "IntelRecord", "IntelSource", "IngestionRun",
-    "Organization", "TeamMembership", "User",
+    "AuditEvent",
+    "IngestionRun",
+    "IntelEvidence",
+    "IntelRecord",
+    "IntelSource",
+    "Organization",
+    "TeamMembership",
+    "User",
 ]
