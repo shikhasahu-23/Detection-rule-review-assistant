@@ -2,7 +2,7 @@ import httpx
 import pytest
 
 from app.intel.connectors.cisa_kev import CISA_KEV_URL, CisaKevConnector
-from app.intel.connectors.nvd import NVD_API_URL, NvdConnector
+from app.intel.connectors.nvd import NvdConnector
 from app.intel.schemas import IndicatorType
 
 
@@ -82,7 +82,8 @@ async def test_nvd_fetch_paginates_and_parse():
 
     assert len(records) == 2
     assert connector.parse(records[0])[0].value == "CVE-2025-1111"
-    assert connector.get_checkpoint() == {"start_index": "2", "total_results": "2"}
+    # A successful full sweep starts at zero on the next scheduled run.
+    assert connector.get_checkpoint() == {"start_index": "0", "total_results": "2"}
 
 
 @pytest.mark.asyncio
