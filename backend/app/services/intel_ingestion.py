@@ -120,7 +120,7 @@ async def run_intel_ingestion(
         run.status = "success"
         run.completed_at = datetime.now(UTC)
         db.commit()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - persist a failed run for any connector/DB failure
         db.rollback()
         run.status = "failed"
         run.completed_at = datetime.now(UTC)
