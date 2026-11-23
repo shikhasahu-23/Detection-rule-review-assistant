@@ -1,7 +1,6 @@
 """Create initial identity, intelligence and audit schema."""
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects import postgresql
 
 revision = "0001_initial_schema"
 down_revision = None
