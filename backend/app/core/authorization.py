@@ -1,6 +1,6 @@
 from dataclasses import dataclass
-from typing import Annotated
 from enum import StrEnum
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, Request, status
