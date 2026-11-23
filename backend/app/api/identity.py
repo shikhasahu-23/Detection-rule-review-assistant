@@ -1,7 +1,8 @@
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -25,8 +26,6 @@ class CurrentIdentityResponse(BaseModel):
 
 
 class TeamMemberResponse(BaseModel):
-    model_config = ConfigDict(from_attributes=True)
-
     user_id: UUID
     email: str
     display_name: str
@@ -35,7 +34,7 @@ class TeamMemberResponse(BaseModel):
 
 @router.get("/identity/me", response_model=CurrentIdentityResponse)
 def read_current_identity(
-    principal: Principal = Depends(get_current_principal),
+    principal: Annotated[Principal, Depends(get_current_principal)],
 ) -> CurrentIdentityResponse:
     return CurrentIdentityResponse(
         user_id=principal.user_id,
@@ -47,12 +46,11 @@ def read_current_identity(
 @router.get(
     "/organizations/{organization_id}/members",
     response_model=list[TeamMemberResponse],
-    dependencies=[Depends(require_roles(Role.ADMIN))],
 )
 def list_organization_members(
     organization_id: UUID,
-    principal: Principal = Depends(get_current_principal),
-    db: Session = Depends(get_db),
+    principal: Annotated[Principal, Depends(require_roles(Role.ADMIN))],
+    db: Annotated[Session, Depends(get_db)],
 ) -> list[TeamMemberResponse]:
     assert_organization_access(principal, organization_id)
     statement = (
