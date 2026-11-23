@@ -40,7 +40,7 @@ class CisaKevConnector(IntelConnector):
         catalog = await self._get_json()
         version = catalog.get("catalogVersion")
         if not isinstance(version, str) or not isinstance(catalog.get("vulnerabilities"), list):
-            raise ValueError("CISA KEV response is missing catalogVersion or vulnerabilities")
+            raise TypeError("CISA KEV response is missing catalogVersion or vulnerabilities")
         self._catalog_version = version
         self._last_success_at = str(catalog.get("dateReleased") or "")
         if checkpoint and checkpoint.get("catalog_version") == version:
