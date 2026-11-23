@@ -1,7 +1,18 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, Float, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    JSON,
+    DateTime,
+    Float,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.types import Uuid
 
@@ -43,7 +54,10 @@ class IngestionRun(Base):
 
 class IntelRecord(Base):
     __tablename__ = "intel_records"
-    __table_args__ = (UniqueConstraint("organization_id", "record_type", "normalized_value"), Index("ix_intel_records_expiry", "organization_id", "expires_at"))
+    __table_args__ = (
+        UniqueConstraint("organization_id", "record_type", "normalized_value"),
+        Index("ix_intel_records_expiry", "organization_id", "expires_at"),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
     organization_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
