@@ -1,5 +1,5 @@
-from app.db.base import Base
 from app import models
+from app.db.base import Base
 
 
 def test_initial_model_metadata_contains_core_tables() -> None:
