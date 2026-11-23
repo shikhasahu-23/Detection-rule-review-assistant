@@ -20,6 +20,7 @@ class NvdConnector(IntelConnector):
         self._results_per_page = 2000
         self._start_index = 0
         self._total_results: int | None = None
+        self._completed = False
         self._last_success_at: str | None = None
 
     async def configure(self, config: Mapping[str, Any]) -> None:
@@ -55,6 +56,7 @@ class NvdConnector(IntelConnector):
         if checkpoint and checkpoint.get("start_index", "").isdigit():
             start_index = int(checkpoint["start_index"])
         self._start_index = start_index
+        self._completed = False
         while True:
             payload = await self._get_json(
                 {"startIndex": start_index, "resultsPerPage": self._results_per_page}
@@ -71,6 +73,7 @@ class NvdConnector(IntelConnector):
             start_index += len(vulnerabilities)
             self._start_index = start_index
             if not vulnerabilities or start_index >= total_results:
+                self._completed = True
                 break
 
     def parse(self, raw_record: Mapping[str, Any]) -> list[IntelIndicatorInput]:
@@ -110,7 +113,10 @@ class NvdConnector(IntelConnector):
     def get_checkpoint(self) -> Mapping[str, str] | None:
         if self._total_results is None:
             return None
-        return {"start_index": str(self._start_index), "total_results": str(self._total_results)}
+        # A completed catalog sweep must restart at zero on the next run so newly
+        # published/modified CVEs are not skipped. Mid-run positions remain resumable.
+        start_index = 0 if self._completed else self._start_index
+        return {"start_index": str(start_index), "total_results": str(self._total_results)}
 
     async def health(self) -> ConnectorHealth:
         status = ConnectorStatus.HEALTHY if self._last_success_at else ConnectorStatus.UNAVAILABLE
