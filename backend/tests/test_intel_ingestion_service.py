@@ -1,6 +1,5 @@
 from collections.abc import AsyncIterator, Mapping
 from datetime import UTC, datetime
-from uuid import uuid4
 
 import pytest
 from sqlalchemy import create_engine, select
@@ -94,7 +93,10 @@ async def test_ingestion_persists_records_and_evidence_idempotently(db):
     assert first.records_created == 1
     assert second.records_created == 0
     assert second.checkpoint == {"cursor": "done"}
-    assert db.scalar(select(IntelRecord).where(IntelRecord.organization_id == organization.id)).normalized_value == "example.com"
+    record = db.scalar(
+        select(IntelRecord).where(IntelRecord.organization_id == organization.id)
+    )
+    assert record.normalized_value == "example.com"
     assert len(list(db.scalars(select(IntelEvidence)))) == 1
 
 
