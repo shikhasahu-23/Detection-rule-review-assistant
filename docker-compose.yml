@@ -12,6 +12,28 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+  worker:
+    build: ./backend
+    command: celery -A app.workers.celery_app:celery_app worker --loglevel=INFO
+    env_file: .env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+  scheduler:
+    build: ./backend
+    command: celery -A app.workers.celery_app:celery_app beat --loglevel=INFO
+    env_file: .env
+    volumes:
+      - ./backend:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
   frontend:
     image: node:22-alpine
     working_dir: /app
