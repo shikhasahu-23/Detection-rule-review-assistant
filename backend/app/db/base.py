@@ -1,5 +1,4 @@
-import sqlalchemy as sa  # noqa: I001
-
+import sqlalchemy as sa
 
 NAMING_CONVENTION = {
     "ix": "ix_%(column_0_label)s",
