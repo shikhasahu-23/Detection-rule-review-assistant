@@ -8,7 +8,13 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.core.authorization import Principal, assert_organization_access, get_current_principal
+from app.core.authorization import (
+    Principal,
+    Role,
+    assert_organization_access,
+    get_current_principal,
+    require_roles,
+)
 from app.db.session import get_db
 from app.models.intelligence import (
     AttackTechniqueMapping,
@@ -273,6 +279,10 @@ def create_threat_entity(
     organization_id: UUID,
     payload: ThreatEntityCreate,
     principal: Annotated[Principal, Depends(get_current_principal)],
+    _writer: Annotated[
+        Principal,
+        Depends(require_roles(Role.ADMIN, Role.DETECTION_ENGINEER)),
+    ],
     db: Annotated[Session, Depends(get_db)],
 ) -> ThreatEntityItem:
     _authorize(principal, organization_id)
@@ -312,6 +322,10 @@ def link_indicator_to_entity(
     organization_id: UUID,
     payload: EntityLinkCreate,
     principal: Annotated[Principal, Depends(get_current_principal)],
+    _writer: Annotated[
+        Principal,
+        Depends(require_roles(Role.ADMIN, Role.DETECTION_ENGINEER)),
+    ],
     db: Annotated[Session, Depends(get_db)],
 ) -> EntityLinkItem:
     _authorize(principal, organization_id)
@@ -351,6 +365,10 @@ def create_attack_mapping(
     organization_id: UUID,
     payload: AttackMappingCreate,
     principal: Annotated[Principal, Depends(get_current_principal)],
+    _writer: Annotated[
+        Principal,
+        Depends(require_roles(Role.ADMIN, Role.DETECTION_ENGINEER)),
+    ],
     db: Annotated[Session, Depends(get_db)],
 ) -> AttackMappingItem:
     _authorize(principal, organization_id)
