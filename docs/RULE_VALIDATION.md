@@ -24,3 +24,8 @@ The read-only rule library endpoint is `GET /api/v1/rules`. It searches candidat
 - `limit` and `offset`: pagination (limit 1–500; offset 0 or greater).
 
 The Rule Library UI exposes search, platform and validation filters, refresh, and pagination. It displays the candidate's validation findings and explicitly labels each version as not approved and not deployable. This feature does not add approval, export, deployment, IAM, or audit workflow behavior.
+
+
+## Telemetry coverage and generation provenance
+
+Candidate validation includes a lexical telemetry coverage report when an intent specifies required fields. The report lists whole-token field matches and a percentage; it is a review hint, not proof of data availability. Candidate records also retain provider, model, prompt-contract version, generation timestamp and validation scope. The Rule Generator and Rule Library show this provenance and coverage summary.
