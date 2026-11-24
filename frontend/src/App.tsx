@@ -10,6 +10,7 @@ type Summary = { indicators_total: number; active_indicators: number; sources_to
 type Indicator = { id: string; indicator_type: string; value: string; confidence: number; severity: string; status: string; description: string | null; tags: string[]; created_at: string };
 type Feed = { name: string; status: string; last_run: string; records_seen: number; indicators_created: number };
 type DetectionIntent = { id: string; title: string; description: string; behavior: string; severity: string; target_platforms: string[]; status: string };
+type TestRun = { id:string; status:string; total_cases:number; passed_cases:number; failed_cases:number; case_results:{name:string;scenario_type:string;status:string;checks:{operator:string;value:string;passed:boolean}[]}[]; regression_report:{status:string;regressions:string[];improvements:string[]} };
 type RuleCandidate = { id: string; name: string; platform: string; query: string; version: number; status: string; validation_status: string; validation_report: { errors: {code:string;message:string}[]; warnings: {code:string;message:string}[]; is_deployable: boolean; telemetry_coverage?: {score:number|null;status:string;matched_requirements:number;total_requirements:number} }; generation_metadata: {provider?:string;model?:string;prompt_version?:string;generated_at?:string;validation_scope?:string}; generator: string };
 type AttackTechnique = { id: string; external_id: string; name: string; description: string; platforms: string[]; tactics: string[]; is_subtechnique: boolean; revoked: boolean; deprecated: boolean; source_url: string };
 type PipelineRun = { run_id: string; status: string; trigger: string; indicators_enriched: number; opportunities_found: number; candidates_created: number; candidates_skipped: number; started_at: string; completed_at: string | null; error_message: string | null; stage_results: Record<string, {status: string; reason?: string; error?: string}> };
@@ -43,6 +44,9 @@ function App() {
   const [notice, setNotice] = useState("");
   const [intents, setIntents] = useState<DetectionIntent[]>([]);
   const [candidates, setCandidates] = useState<RuleCandidate[]>([]);
+  const [testSuiteJson, setTestSuiteJson] = useState(JSON.stringify({cases:[{name:"Required process telemetry",scenario_type:"positive",fixture:{process_name:"powershell.exe"},assertions:[{operator:"contains",value:"process_name"}]}]},null,2));
+  const [testRuns, setTestRuns] = useState<Record<string,TestRun>>({});
+  const [runningTests, setRunningTests] = useState<Record<string,boolean>>({});
   const [selectedIntentId, setSelectedIntentId] = useState("");
   const [intentTitle, setIntentTitle] = useState("");
   const [intentDescription, setIntentDescription] = useState("");
@@ -228,6 +232,24 @@ function App() {
   useEffect(() => {
     if (page === "Rule library") void loadRuleLibrary();
   }, [page, loadRuleLibrary]);
+
+  const runCandidateTests = async (candidateId: string) => {
+    setRunningTests(current => ({...current,[candidateId]:true}));
+    setError(""); setNotice("");
+    try {
+      const suite = JSON.parse(testSuiteJson);
+      const response = await fetch(`${API}/api/v1/rules/${candidateId}/test-runs`, {
+        method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(suite),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || "Unable to run offline test suite.");
+      setTestRuns(current => ({...current,[candidateId]:body}));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Invalid test suite JSON or test run failed.");
+    } finally {
+      setRunningTests(current => ({...current,[candidateId]:false}));
+    }
+  };
 
   const loadOpportunities = useCallback(async () => {
     setLoadingOpportunities(true);
@@ -454,8 +476,9 @@ function App() {
       </> : page === "Validation" || page === "Review queue" ? <>
         <section className="banner"><ShieldCheck/><div><b>{page}</b><p>Candidate queries and static validation results. Approval and production export are not enabled yet.</p></div><span>READ ONLY</span></section>
         <section className="panel intel-panel"><div className="panelhead"><div><b>Candidate inventory</b><p>Select an intent to inspect its candidates.</p></div><span>{candidates.length} candidates</span></div>
+          <div className="field"><label>Offline test suite (JSON)</label><textarea rows={8} value={testSuiteJson} onChange={e=>setTestSuiteJson(e.target.value)} spellCheck={false}/><small className="muted">Assertions inspect query text only. Fixtures are context; they are not executed as events.</small></div>
           <select className="intent-select" value={selectedIntentId} onChange={e=>setSelectedIntentId(e.target.value)}><option value="">Select intent</option>{intents.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select>
-          {candidates.map(candidate=><article className="candidate-card" key={candidate.id}><div className="candidate-title"><div><b>{candidate.name}</b><small>{candidate.platform.toUpperCase()} · V{candidate.version}</small></div><span>{candidate.validation_status}</span></div><pre>{candidate.query}</pre><small className="muted">Not approved · Not deployable</small></article>)}
+          {candidates.map(candidate=><article className="candidate-card" key={candidate.id}><div className="candidate-title"><div><b>{candidate.name}</b><small>{candidate.platform.toUpperCase()} · V{candidate.version}</small></div><span>{candidate.validation_status}</span></div><pre>{candidate.query}</pre><button onClick={()=>void runCandidateTests(candidate.id)} disabled={!!runningTests[candidate.id]}>{runningTests[candidate.id]?"Running offline checks…":"Run offline checks"}</button>{testRuns[candidate.id]&&<div className="test-report"><b>{testRuns[candidate.id].status.toUpperCase()} · {testRuns[candidate.id].passed_cases}/{testRuns[candidate.id].total_cases} cases passed</b><small>Regression: {testRuns[candidate.id].regression_report.status}</small>{testRuns[candidate.id].case_results.map(result=><small key={result.name}>{result.status==="passed"?"✓":"✕"} {result.name} · {result.scenario_type}</small>)}{testRuns[candidate.id].regression_report.regressions.map(name=><small key={name}>Regression: {name}</small>)}</div>}<small className="muted">Not approved · Not deployable</small></article>)}
         </section>
       </> : <>
         <section className="banner"><Activity/><div><b>Your workspace is ready for detection engineering</b><p>Start by ingesting trusted intelligence. Rule generation and approval workflows will build on this foundation.</p></div><span>PHASE 2</span></section>

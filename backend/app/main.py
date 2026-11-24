@@ -8,6 +8,7 @@ from app.api.generation import router as generation_router
 from app.api.intelligence import router as intelligence_router
 from app.api.rule_candidates import library_router
 from app.api.rule_candidates import router as rule_candidates_router
+from app.api.testing import router as testing_router
 from app.core.config import get_settings
 from app.db.base import Base
 from app.db.session import engine
@@ -19,6 +20,7 @@ from app.models import (  # noqa: F401
     intelligence,
     pipeline,
     rule,
+    testing,
     threat_graph,
 )
 
@@ -50,6 +52,7 @@ app.include_router(detection_intents_router)
 app.include_router(rule_candidates_router)
 app.include_router(library_router)
 app.include_router(generation_router)
+app.include_router(testing_router)
 
 
 @app.get("/health", tags=["operations"])
