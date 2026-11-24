@@ -7,7 +7,7 @@ ThreatWeave brings the threat intelligence and detection engineering lifecycle t
 ## Product decisions
 - Hybrid AI generation with deterministic validation.
 - Multi-provider LLM architecture (OpenAI selected as the initial provider; provider abstraction allows future approved providers).
-- Reputable public intelligence sources plus configurable custom feeds.
+- Reputable public intelligence sources plus configurable custom feeds (CISA KEV and NVD CVE connectors currently implemented).
 - Daily ingestion and enrichment.
 - Automatically generate candidate rules and proposed updates; require human review and approval.
 - Team access with role-based permissions and audit history.
@@ -36,5 +36,6 @@ Do not commit `.env` or real API credentials. To use AI-assisted detection gener
 - [Detection intent API](docs/DETECTION_INTENTS.md)
 - [Rule candidate validation](docs/RULE_VALIDATION.md)
 - [LLM generation](docs/LLM_GENERATION.md)
+- [NVD CVE feed](docs/NVD_FEED.md)
 
 The product scope and implementation roadmap remain unchanged; ThreatWeave is the product name for the complete platform, not a single detection-review feature.
