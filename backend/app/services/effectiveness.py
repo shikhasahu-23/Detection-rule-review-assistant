@@ -6,6 +6,7 @@ ATT&CK coverage uses explicit technique IDs supplied on detection intents.
 from __future__ import annotations
 
 from collections import Counter
+
 from sqlalchemy import desc, select
 from sqlalchemy.orm import Session
 
@@ -36,7 +37,7 @@ def build_detection_effectiveness(db: Session) -> dict:
     mapped: dict[str, list[DetectionIntent]] = {}
     intent_candidate_map: dict[str, list[RuleCandidate]] = {}
     for intent in intents:
-        for technique_id in set(value.upper() for value in (intent.attack_techniques or [])):
+        for technique_id in {value.upper() for value in (intent.attack_techniques or [])}:
             if technique_id in technique_by_id:
                 mapped.setdefault(technique_id, []).append(intent)
     for candidate in candidates:
