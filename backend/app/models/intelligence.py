@@ -1,9 +1,19 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
+from datetime import datetime
 
-from sqlalchemy import Date, DateTime, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    JSON,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -29,10 +39,16 @@ class Indicator(Base):
 
 class SourceEvidence(Base):
     __tablename__ = "source_evidence"
-    __table_args__ = (UniqueConstraint("indicator_id", "source_name", "source_reference", name="uq_indicator_source_ref"),)
+    __table_args__ = (
+        UniqueConstraint(
+            "indicator_id", "source_name", "source_reference", name="uq_indicator_source_ref"
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    indicator_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("indicators.id", ondelete="CASCADE"), index=True)
+    indicator_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("indicators.id", ondelete="CASCADE"), index=True
+    )
     source_name: Mapped[str] = mapped_column(String(100), nullable=False)
     source_reference: Mapped[str] = mapped_column(String(512), nullable=False)
     source_url: Mapped[str | None] = mapped_column(String(2048))
