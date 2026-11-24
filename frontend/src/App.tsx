@@ -11,11 +11,13 @@ type Indicator = { id: string; indicator_type: string; value: string; confidence
 type Feed = { name: string; status: string; last_run: string; records_seen: number; indicators_created: number };
 type DetectionIntent = { id: string; title: string; description: string; behavior: string; severity: string; target_platforms: string[]; status: string };
 type RuleCandidate = { id: string; name: string; platform: string; query: string; version: number; status: string; validation_status: string; validation_report: { errors: {code:string;message:string}[]; warnings: {code:string;message:string}[]; is_deployable: boolean }; generator: string };
-type AttackTechnique = { id: string; external_id: string; name: string; description: string; platforms: string[]; tactics: string[]; is_subtechnique: boolean; revoked: boolean; deprecated: boolean; source_url: string };\ntype Opportunity = { intent_id: string; title: string; severity: string; status: string; target_platforms: string[]; association_type: string; indicators: { indicator_id: string; indicator_type: string; value: string; confidence: number; severity: string; freshness: string; evidence_count: number }[]; matched_techniques: string[]; matched_cves: string[]; indicator_count: number; evidence_count: number; rationale: string };
+type AttackTechnique = { id: string; external_id: string; name: string; description: string; platforms: string[]; tactics: string[]; is_subtechnique: boolean; revoked: boolean; deprecated: boolean; source_url: string };
+type Opportunity = { intent_id: string; title: string; severity: string; status: string; target_platforms: string[]; association_type: string; indicators: { indicator_id: string; indicator_type: string; value: string; confidence: number; severity: string; freshness: string; evidence_count: number }[]; matched_techniques: string[]; matched_cves: string[]; indicator_count: number; evidence_count: number; rationale: string };
 
 const nav = [
   { label: "Overview", icon: Layers3 },
-  { label: "Threat intelligence", icon: Radar },\n  { label: "Correlation", icon: BrainCircuit },
+  { label: "Threat intelligence", icon: Radar },
+  { label: "Correlation", icon: BrainCircuit },
   { label: "ATT&CK catalog", icon: ShieldCheck },
   { label: "Rule generator", icon: Sparkles },
   { label: "Validation", icon: ShieldCheck },
@@ -51,7 +53,9 @@ function App() {
   const [libraryQuery, setLibraryQuery] = useState("");
   const [libraryPlatform, setLibraryPlatform] = useState("");
   const [libraryValidation, setLibraryValidation] = useState("");
-  const [libraryOffset, setLibraryOffset] = useState(0);\n  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);\n  const [loadingOpportunities, setLoadingOpportunities] = useState(false);
+  const [libraryOffset, setLibraryOffset] = useState(0);
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [loadingOpportunities, setLoadingOpportunities] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
