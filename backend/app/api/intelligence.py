@@ -43,7 +43,7 @@ def list_indicators(
     indicator_type: str | None = Query(default=None, max_length=32),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
-    db: Session = Depends(get_db),
+    db: Annotated[Session, Depends(get_db)],
 ):
     stmt = select(Indicator).order_by(desc(Indicator.created_at)).limit(limit).offset(offset)
     if q:
@@ -54,7 +54,7 @@ def list_indicators(
 
 
 @router.get("/indicators/{indicator_id}/evidence")
-def indicator_evidence(indicator_id: UUID, db: Session = Depends(get_db)) -> list[dict]:
+def indicator_evidence(indicator_id: UUID, db: Annotated[Session, Depends(get_db)]) -> list[dict]:
     if db.get(Indicator, indicator_id) is None:
         raise HTTPException(status_code=404, detail="Indicator not found")
     rows = db.scalars(select(SourceEvidence).where(SourceEvidence.indicator_id == indicator_id)).all()
@@ -64,7 +64,7 @@ def indicator_evidence(indicator_id: UUID, db: Session = Depends(get_db)) -> lis
 
 
 @router.get("/feeds")
-def list_feeds(db: Session = Depends(get_db)) -> list[dict]:
+def list_feeds(db: Annotated[Session, Depends(get_db)]) -> list[dict]:
     latest = db.scalars(select(FeedRun).order_by(desc(FeedRun.started_at)).limit(50)).all()
     by_source: dict[str, dict] = {}
     for run in latest:
@@ -78,7 +78,7 @@ def list_feeds(db: Session = Depends(get_db)) -> list[dict]:
 
 
 @router.post("/feeds/cisa-kev/sync")
-def sync_cisa_feed(db: Session = Depends(get_db)) -> dict:
+def sync_cisa_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
     try:
         return sync_cisa_kev(db)
     except (ValueError, TypeError) as exc:
