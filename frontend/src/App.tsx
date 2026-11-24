@@ -11,10 +11,12 @@ type Indicator = { id: string; indicator_type: string; value: string; confidence
 type Feed = { name: string; status: string; last_run: string; records_seen: number; indicators_created: number };
 type DetectionIntent = { id: string; title: string; description: string; behavior: string; severity: string; target_platforms: string[]; status: string };
 type RuleCandidate = { id: string; name: string; platform: string; query: string; version: number; status: string; validation_status: string; validation_report: { errors: {code:string;message:string}[]; warnings: {code:string;message:string}[]; is_deployable: boolean }; generator: string };
+type AttackTechnique = { id: string; external_id: string; name: string; description: string; platforms: string[]; tactics: string[]; is_subtechnique: boolean; revoked: boolean; deprecated: boolean; source_url: string };
 
 const nav = [
   { label: "Overview", icon: Layers3 },
   { label: "Threat intelligence", icon: Radar },
+  { label: "ATT&CK catalog", icon: ShieldCheck },
   { label: "Rule generator", icon: Sparkles },
   { label: "Validation", icon: ShieldCheck },
   { label: "Review queue", icon: FileSearch },
@@ -41,6 +43,9 @@ function App() {
   const [targetPlatforms, setTargetPlatforms] = useState<string[]>(["splunk", "sentinel"]);
   const [creatingIntent, setCreatingIntent] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [attackTechniques, setAttackTechniques] = useState<AttackTechnique[]>([]);
+  const [attackSearch, setAttackSearch] = useState("");
+  const [syncingAttack, setSyncingAttack] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -77,6 +82,33 @@ function App() {
     } finally {
       setSyncing(false);
     }
+  };
+
+  const loadAttackCatalog = useCallback(async () => {
+    try {
+      const response = await fetch(`${API}/api/v1/intelligence/attack-techniques?limit=500`);
+      if (!response.ok) throw new Error("Unable to load ATT&CK catalog.");
+      setAttackTechniques(await response.json());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to load ATT&CK catalog.");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (page === "ATT&CK catalog") void loadAttackCatalog();
+  }, [page, loadAttackCatalog]);
+
+  const syncAttack = async () => {
+    setSyncingAttack(true); setError(""); setNotice("");
+    try {
+      const response = await fetch(`${API}/api/v1/intelligence/feeds/mitre-attack/sync`, { method: "POST" });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || "ATT&CK catalog sync failed.");
+      setNotice(`ATT&CK sync complete — ${body.techniques_created} new and ${body.techniques_updated} updated techniques.`);
+      await loadAttackCatalog();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "ATT&CK catalog sync failed.");
+    } finally { setSyncingAttack(false); }
   };
 
   const loadDetectionData = useCallback(async () => {
@@ -177,8 +209,9 @@ function App() {
     <main>
       <header><span>Workspace　›　<b>{page}</b></span><small><span className="live-dot"/> DEVELOPMENT</small></header>
       <section className="heading">
-        <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>{page === "Threat intelligence" ? "Threat Intelligence Center" : "Good morning, team 👋"}</h1><p>Monitor threat intelligence, preserve source evidence, and prepare trusted inputs for detection engineering.</p></div>
+        <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>{page === "Threat intelligence" ? "Threat Intelligence Center" : page === "ATT&CK catalog" ? "MITRE ATT&CK Catalog" : page === "Rule generator" ? "Detection Rule Generator" : "Good morning, team 👋"}</h1><p>Monitor threat intelligence, preserve source evidence, and prepare trusted inputs for detection engineering.</p></div>
         {page === "Threat intelligence" && <div className="feed-actions"><button onClick={syncCisa} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncing ? "spin" : ""}/>{syncing ? "Syncing CISA…" : "Sync CISA KEV"}</button><button onClick={syncNvd} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncingNvd ? "spin" : ""}/>{syncingNvd ? "Syncing NVD…" : "Sync NVD CVEs"}</button></div>}
+        {page === "ATT&CK catalog" && <button onClick={syncAttack} disabled={syncingAttack}><RefreshCw size={16} className={syncingAttack ? "spin" : ""}/>{syncingAttack ? "Syncing catalog…" : "Sync ATT&CK"}</button>}
       </section>
       {error && <div className="notice error"><AlertTriangle size={16}/>{error}<button onClick={loadData}>Retry</button></div>}
       {notice && <div className="notice success"><CheckCircle2 size={16}/>{notice}</div>}
@@ -195,6 +228,15 @@ function App() {
         </section>
         <section className="panel feed-panel"><div className="panelhead"><div><b>Feed activity</b><p>Recent ingestion status</p></div></div>
           {feeds.length ? feeds.map(feed => <div className="feed-row" key={feed.name}><div><b>{feed.name}</b><small>{feed.last_run ? new Date(feed.last_run).toLocaleString() : "No run time"}</small></div><span className={feed.status === "succeeded" ? "feed-ok" : "feed-fail"}>{feed.status}</span><small>{feed.records_seen.toLocaleString()} records · {feed.indicators_created.toLocaleString()} new</small></div>) : <p className="muted">No feed runs recorded. Start with the CISA KEV sync.</p>}
+        </section>
+      </> : page === "ATT&CK catalog" ? <>
+        <section className="banner"><ShieldCheck/><div><b>MITRE ATT&CK Enterprise</b><p>Technique and sub-technique reference catalog with tactic and platform metadata. Deprecated and revoked entries remain visible for historical references.</p></div><span>{attackTechniques.length} TECHNIQUES</span></section>
+        <section className="panel intel-panel"><div className="panelhead"><div><b>Technique catalog</b><p>Search by technique ID, name, platform or tactic.</p></div><span>{attackTechniques.length} loaded</span></div>
+          <div className="searchbar"><Search size={16}/><input value={attackSearch} onChange={e=>setAttackSearch(e.target.value)} placeholder="Search T1059, PowerShell, Execution…"/></div>
+          <div className="table-wrap"><table><thead><tr><th>TECHNIQUE</th><th>TACTICS</th><th>PLATFORMS</th><th>TYPE</th><th>STATUS</th></tr></thead><tbody>
+            {attackTechniques.filter(item=>[item.external_id,item.name,item.description,...item.tactics,...item.platforms].join(" ").toLowerCase().includes(attackSearch.toLowerCase())).map(item=><tr key={item.id}><td><b>{item.external_id} · {item.name}</b><small>{item.description}</small></td><td>{item.tactics.join(", ") || "—"}</td><td>{item.platforms.join(", ") || "—"}</td><td>{item.is_subtechnique?"Sub-technique":"Technique"}</td><td><span className="status-pill">{item.revoked?"Revoked":item.deprecated?"Deprecated":"Active"}</span></td></tr>)}
+            {attackTechniques.length===0 && <tr><td colSpan={5} className="no-data">No ATT&CK techniques loaded. Select Sync ATT&CK to import the official catalog.</td></tr>}
+          </tbody></table></div>
         </section>
       </> : page === "Rule generator" ? <>
         <section className="banner"><Sparkles/><div><b>AI-assisted detection generation</b><p>Describe behavior once, then create platform-specific draft candidates. Generated queries require analyst review.</p></div><span>HUMAN REVIEW</span></section>
