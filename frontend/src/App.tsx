@@ -12,7 +12,8 @@ type Feed = { name: string; status: string; last_run: string; records_seen: numb
 type DetectionIntent = { id: string; title: string; description: string; behavior: string; severity: string; target_platforms: string[]; status: string };
 type RuleCandidate = { id: string; name: string; platform: string; query: string; version: number; status: string; validation_status: string; validation_report: { errors: {code:string;message:string}[]; warnings: {code:string;message:string}[]; is_deployable: boolean }; generator: string };
 type AttackTechnique = { id: string; external_id: string; name: string; description: string; platforms: string[]; tactics: string[]; is_subtechnique: boolean; revoked: boolean; deprecated: boolean; source_url: string };
-type PipelineRun = { run_id: string; status: string; trigger: string; indicators_enriched: number; opportunities_found: number; candidates_created: number; candidates_skipped: number; started_at: string; completed_at: string | null; error_message: string | null; stage_results: Record<string, {status: string; reason?: string; error?: string}> };\ntype ThreatNode = { id: string; entity_type: string; external_id: string; name: string; confidence: number; source_name: string; source_reference: string; source_url: string | null; revoked: boolean; deprecated: boolean };
+type PipelineRun = { run_id: string; status: string; trigger: string; indicators_enriched: number; opportunities_found: number; candidates_created: number; candidates_skipped: number; started_at: string; completed_at: string | null; error_message: string | null; stage_results: Record<string, {status: string; reason?: string; error?: string}> };
+type ThreatNode = { id: string; entity_type: string; external_id: string; name: string; confidence: number; source_name: string; source_reference: string; source_url: string | null; revoked: boolean; deprecated: boolean };
 type ThreatEdge = { id: string; source: string; target: string; relationship_type: string; confidence: number; assertion_status: string; source_name: string; source_reference: string; source_url: string | null };
 type ThreatGraph = { nodes: ThreatNode[]; edges: ThreatEdge[]; truncated: boolean };
 type Opportunity = { intent_id: string; title: string; severity: string; status: string; target_platforms: string[]; association_type: string; indicators: { indicator_id: string; indicator_type: string; value: string; confidence: number; severity: string; freshness: string; evidence_count: number }[]; matched_techniques: string[]; matched_cves: string[]; indicator_count: number; evidence_count: number; rationale: string };
@@ -64,7 +65,9 @@ function App() {
   const [loadingThreatGraph, setLoadingThreatGraph] = useState(false);
   const [stixImporting, setStixImporting] = useState(false);
   const [entityTypeFilter, setEntityTypeFilter] = useState("");
-  const [entitySearch, setEntitySearch] = useState("");\n  const [pipelineRuns, setPipelineRuns] = useState<PipelineRun[]>([]);\n  const [pipelineQueued, setPipelineQueued] = useState(false);
+  const [entitySearch, setEntitySearch] = useState("");
+  const [pipelineRuns, setPipelineRuns] = useState<PipelineRun[]>([]);
+  const [pipelineQueued, setPipelineQueued] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
