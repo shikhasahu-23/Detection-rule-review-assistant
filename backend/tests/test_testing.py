@@ -99,3 +99,30 @@ def test_test_run_history_is_listed():
     history = client.get(f"/api/v1/rules/{candidate['id']}/test-runs")
     assert history.status_code == 200
     assert len(history.json()) == 1
+
+def test_new_candidate_version_reports_regressions_for_same_suite():
+    first = create_candidate()
+    intent_id = first["intent_id"]
+    suite = {"cases": [{
+        "name": "Required process and destination fields",
+        "scenario_type": "positive",
+        "fixture": {"process_name": "powershell.exe", "destination_ip": "203.0.113.10"},
+        "assertions": [
+            {"operator": "contains", "value": "process_name"},
+            {"operator": "contains", "value": "destination_ip"},
+        ],
+    }]}
+    baseline = client.post(f"/api/v1/rules/{first['id']}/test-runs", json=suite)
+    assert baseline.status_code == 201
+    assert baseline.json()["regression_report"]["status"] == "baseline"
+
+    second = client.post(f"/api/v1/detection-intents/{intent_id}/candidates", json={
+        "name": "PowerShell download revised", "platform": "splunk",
+        "query": "search index=endpoint process_name=powershell.exe",
+    })
+    assert second.status_code == 201
+    rerun = client.post(f"/api/v1/rules/{second.json()['id']}/test-runs", json=suite)
+    assert rerun.status_code == 201
+    report = rerun.json()["regression_report"]
+    assert report["status"] == "regressed"
+    assert report["regressions"] == ["Required process and destination fields"]
