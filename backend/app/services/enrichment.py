@@ -31,13 +31,36 @@ def _utc(value: datetime) -> datetime:
     return value.replace(tzinfo=UTC) if value.tzinfo is None else value.astimezone(UTC)
 
 
+def _structured_references(value: object) -> tuple[set[str], set[str]]:
+    attack_ids: set[str] = set()
+    cves: set[str] = set()
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            normalized_key = str(key).lower()
+            if isinstance(nested, str):
+                if "technique" in normalized_key or normalized_key in {"attack_id", "attack_ids", "mitre_id", "external_id"}:
+                    attack_ids.update(item.upper() for item in ATTACK_ID_RE.findall(nested))
+                if normalized_key in {"cve", "cve_id", "cve_ids", "id", "reference", "references"}:
+                    cves.update(item.upper() for item in CVE_RE.findall(nested))
+            else:
+                nested_attack, nested_cves = _structured_references(nested)
+                attack_ids.update(nested_attack)
+                cves.update(nested_cves)
+    elif isinstance(value, (list, tuple)):
+        for nested in value:
+            nested_attack, nested_cves = _structured_references(nested)
+            attack_ids.update(nested_attack)
+            cves.update(nested_cves)
+    return attack_ids, cves
+
+
 def _evidence_context(evidence: list[SourceEvidence]) -> tuple[set[str], set[str]]:
     attack_ids: set[str] = set()
     cves: set[str] = set()
     for row in evidence:
-        for value in _strings(row.raw_data):
-            attack_ids.update(item.upper() for item in ATTACK_ID_RE.findall(value))
-            cves.update(item.upper() for item in CVE_RE.findall(value))
+        structured_attack, structured_cves = _structured_references(row.raw_data)
+        attack_ids.update(structured_attack)
+        cves.update(structured_cves)
         attack_ids.update(item.upper() for item in ATTACK_ID_RE.findall(row.source_reference or ""))
         cves.update(item.upper() for item in CVE_RE.findall(row.source_reference or ""))
     return attack_ids, cves
@@ -54,7 +77,7 @@ def enrich_indicator(db: Session, indicator_id: UUID) -> dict | None:
     ).all()
     attack_ids, cves = _evidence_context(evidence)
     text_values = [indicator.value, indicator.description or "", *(indicator.tags or [])]
-    for value in text_values:
+    for value in (indicator.value, *(indicator.tags or [])):
         attack_ids.update(item.upper() for item in ATTACK_ID_RE.findall(value))
         cves.update(item.upper() for item in CVE_RE.findall(value))
     if indicator.indicator_type == "cve":
@@ -73,11 +96,12 @@ def enrich_indicator(db: Session, indicator_id: UUID) -> dict | None:
     intents = db.scalars(select(DetectionIntent).order_by(desc(DetectionIntent.created_at))).all()
     matched_intents = []
     for intent in intents:
-        matched_techniques = sorted(set(intent.attack_techniques or []) & attack_ids)
-        matched_cves = {
-            item for item in cves
-            if any(item in candidate.upper() for candidate in _strings(intent.evidence))
-        }
+        intent_attack_ids = {value.upper() for value in (intent.attack_techniques or [])}
+        intent_evidence_attack_ids, intent_evidence_cves = _structured_references(intent.evidence)
+        intent_attack_ids.update(intent_evidence_attack_ids)
+        matched_techniques = sorted(intent_attack_ids & attack_ids)
+        intent_evidence_cves.update(item.upper() for item in _strings(intent.evidence) if CVE_RE.fullmatch(item.strip()))
+        matched_cves = sorted(cves & intent_evidence_cves)
         if matched_techniques or matched_cves:
             reasons = []
             if matched_techniques:
@@ -89,7 +113,7 @@ def enrich_indicator(db: Session, indicator_id: UUID) -> dict | None:
                 "severity": intent.severity, "status": intent.status,
                 "target_platforms": intent.target_platforms,
                 "matched_techniques": matched_techniques,
-                "matched_cves": sorted(matched_cves),
+                "matched_cves": matched_cves,
                 "association_type": "explicit_reference",
                 "rationale": reasons,
             })
