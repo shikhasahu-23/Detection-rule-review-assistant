@@ -4,7 +4,6 @@ from __future__ import annotations
 from collections.abc import Callable
 from datetime import UTC, datetime
 from uuid import UUID
-from datetime import UTC, datetime
 
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
@@ -19,8 +18,8 @@ from app.services.enrichment import detection_opportunities, enrich_indicator
 from app.services.generation import GenerationProvider, get_generation_provider
 from app.services.mitre_attack import sync_attack_catalog
 from app.services.nvd import sync_nvd_cves
-from app.services.validation import validate_candidate
 from app.services.platforms import get_platform_contract
+from app.services.validation import validate_candidate
 
 FeedSyncer = Callable[[Session], dict]
 
