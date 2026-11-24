@@ -67,8 +67,10 @@ Deliver a team application that ingests threat intelligence daily, enriches and 
 - Platform-neutral detection intent schema and preview.
 
 **Remaining deliverables**
-- Threat entity models for actors, malware, campaigns, tools and infrastructure.
-- Additional relationship evidence and analyst-confirmed associations.
+- Initial STIX 2.1 entity graph for threat actors, malware, campaigns, tools, infrastructure and vulnerabilities.
+- Source-observed STIX relationships with per-source provenance, confidence, references and idempotent ingestion.
+- Read APIs and a Threat Graph workspace for entity search, relationship inspection and STIX bundle import.
+- Remaining: analyst-confirmed associations, richer relationship evidence and large-scale graph exploration.
 - Configurable lifecycle scoring and expiry policies.
 - Organization-configurable data-source and field catalog.
 
