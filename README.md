@@ -39,5 +39,6 @@ Do not commit `.env` or real API credentials. To use AI-assisted detection gener
 - [LLM generation](docs/LLM_GENERATION.md)
 - [NVD CVE feed](docs/NVD_FEED.md)
 - [MITRE ATT&CK catalog](docs/ATTACK_CATALOG.md)
+- [Custom CSV feed import](docs/CUSTOM_FEED_IMPORT.md)
 
 The product scope and implementation roadmap remain unchanged; ThreatWeave is the product name for the complete platform, not a single detection-review feature.
