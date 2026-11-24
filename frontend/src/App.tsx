@@ -12,12 +12,16 @@ type Feed = { name: string; status: string; last_run: string; records_seen: numb
 type DetectionIntent = { id: string; title: string; description: string; behavior: string; severity: string; target_platforms: string[]; status: string };
 type RuleCandidate = { id: string; name: string; platform: string; query: string; version: number; status: string; validation_status: string; validation_report: { errors: {code:string;message:string}[]; warnings: {code:string;message:string}[]; is_deployable: boolean }; generator: string };
 type AttackTechnique = { id: string; external_id: string; name: string; description: string; platforms: string[]; tactics: string[]; is_subtechnique: boolean; revoked: boolean; deprecated: boolean; source_url: string };
-type ThreatNode = { id: string; entity_type: string; external_id: string; name: string; confidence: number; source_name: string; source_reference: string; source_url: string | null; revoked: boolean; deprecated: boolean };\ntype ThreatEdge = { id: string; source: string; target: string; relationship_type: string; confidence: number; assertion_status: string; source_name: string; source_reference: string; source_url: string | null };\ntype ThreatGraph = { nodes: ThreatNode[]; edges: ThreatEdge[]; truncated: boolean };\ntype Opportunity = { intent_id: string; title: string; severity: string; status: string; target_platforms: string[]; association_type: string; indicators: { indicator_id: string; indicator_type: string; value: string; confidence: number; severity: string; freshness: string; evidence_count: number }[]; matched_techniques: string[]; matched_cves: string[]; indicator_count: number; evidence_count: number; rationale: string };
+type ThreatNode = { id: string; entity_type: string; external_id: string; name: string; confidence: number; source_name: string; source_reference: string; source_url: string | null; revoked: boolean; deprecated: boolean };
+type ThreatEdge = { id: string; source: string; target: string; relationship_type: string; confidence: number; assertion_status: string; source_name: string; source_reference: string; source_url: string | null };
+type ThreatGraph = { nodes: ThreatNode[]; edges: ThreatEdge[]; truncated: boolean };
+type Opportunity = { intent_id: string; title: string; severity: string; status: string; target_platforms: string[]; association_type: string; indicators: { indicator_id: string; indicator_type: string; value: string; confidence: number; severity: string; freshness: string; evidence_count: number }[]; matched_techniques: string[]; matched_cves: string[]; indicator_count: number; evidence_count: number; rationale: string };
 
 const nav = [
   { label: "Overview", icon: Layers3 },
   { label: "Threat intelligence", icon: Radar },
-  { label: "Correlation", icon: BrainCircuit },\n  { label: "Threat graph", icon: Network },
+  { label: "Correlation", icon: BrainCircuit },
+  { label: "Threat graph", icon: Network },
   { label: "ATT&CK catalog", icon: ShieldCheck },
   { label: "Rule generator", icon: Sparkles },
   { label: "Validation", icon: ShieldCheck },
@@ -55,7 +59,12 @@ function App() {
   const [libraryValidation, setLibraryValidation] = useState("");
   const [libraryOffset, setLibraryOffset] = useState(0);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
-  const [loadingOpportunities, setLoadingOpportunities] = useState(false);\n  const [threatGraph, setThreatGraph] = useState<ThreatGraph>({ nodes: [], edges: [], truncated: false });\n  const [loadingThreatGraph, setLoadingThreatGraph] = useState(false);\n  const [stixImporting, setStixImporting] = useState(false);\n  const [entityTypeFilter, setEntityTypeFilter] = useState("");\n  const [entitySearch, setEntitySearch] = useState("");
+  const [loadingOpportunities, setLoadingOpportunities] = useState(false);
+  const [threatGraph, setThreatGraph] = useState<ThreatGraph>({ nodes: [], edges: [], truncated: false });
+  const [loadingThreatGraph, setLoadingThreatGraph] = useState(false);
+  const [stixImporting, setStixImporting] = useState(false);
+  const [entityTypeFilter, setEntityTypeFilter] = useState("");
+  const [entitySearch, setEntitySearch] = useState("");
 
   const loadData = useCallback(async () => {
     setLoading(true);
