@@ -39,11 +39,11 @@ def intelligence_summary(db: Annotated[Session, Depends(get_db)]) -> dict:
 
 @router.get("/indicators", response_model=list[IndicatorOut])
 def list_indicators(
+    db: Annotated[Session, Depends(get_db)],
     q: str | None = Query(default=None, max_length=256),
     indicator_type: str | None = Query(default=None, max_length=32),
     limit: int = Query(default=100, ge=1, le=500),
     offset: int = Query(default=0, ge=0),
-    db: Annotated[Session, Depends(get_db)],
 ):
     stmt = select(Indicator).order_by(desc(Indicator.created_at)).limit(limit).offset(offset)
     if q:
