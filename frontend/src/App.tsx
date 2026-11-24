@@ -43,7 +43,10 @@ function App() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [intents, setIntents] = useState<DetectionIntent[]>([]);
-  const [candidates, setCandidates] = useState<RuleCandidate[]>([]);\n  const [testSuiteJson, setTestSuiteJson] = useState(JSON.stringify({cases:[{name:"Required process telemetry",scenario_type:"positive",fixture:{process_name:"powershell.exe"},assertions:[{operator:"contains",value:"process_name"}]}]},null,2));\n  const [testRuns, setTestRuns] = useState<Record<string,TestRun>>({});\n  const [runningTests, setRunningTests] = useState<Record<string,boolean>>({});
+  const [candidates, setCandidates] = useState<RuleCandidate[]>([]);
+  const [testSuiteJson, setTestSuiteJson] = useState(JSON.stringify({cases:[{name:"Required process telemetry",scenario_type:"positive",fixture:{process_name:"powershell.exe"},assertions:[{operator:"contains",value:"process_name"}]}]},null,2));
+  const [testRuns, setTestRuns] = useState<Record<string,TestRun>>({});
+  const [runningTests, setRunningTests] = useState<Record<string,boolean>>({});
   const [selectedIntentId, setSelectedIntentId] = useState("");
   const [intentTitle, setIntentTitle] = useState("");
   const [intentDescription, setIntentDescription] = useState("");
@@ -473,7 +476,8 @@ function App() {
       </> : page === "Validation" || page === "Review queue" ? <>
         <section className="banner"><ShieldCheck/><div><b>{page}</b><p>Candidate queries and static validation results. Approval and production export are not enabled yet.</p></div><span>READ ONLY</span></section>
         <section className="panel intel-panel"><div className="panelhead"><div><b>Candidate inventory</b><p>Select an intent to inspect its candidates.</p></div><span>{candidates.length} candidates</span></div>
-          <div className="field"><label>Offline test suite (JSON)</label><textarea rows={8} value={testSuiteJson} onChange={e=>setTestSuiteJson(e.target.value)} spellCheck={false}/><small className="muted">Assertions inspect query text only. Fixtures are context; they are not executed as events.</small></div>\n          <select className="intent-select" value={selectedIntentId} onChange={e=>setSelectedIntentId(e.target.value)}><option value="">Select intent</option>{intents.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select>
+          <div className="field"><label>Offline test suite (JSON)</label><textarea rows={8} value={testSuiteJson} onChange={e=>setTestSuiteJson(e.target.value)} spellCheck={false}/><small className="muted">Assertions inspect query text only. Fixtures are context; they are not executed as events.</small></div>
+          <select className="intent-select" value={selectedIntentId} onChange={e=>setSelectedIntentId(e.target.value)}><option value="">Select intent</option>{intents.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select>
           {candidates.map(candidate=><article className="candidate-card" key={candidate.id}><div className="candidate-title"><div><b>{candidate.name}</b><small>{candidate.platform.toUpperCase()} · V{candidate.version}</small></div><span>{candidate.validation_status}</span></div><pre>{candidate.query}</pre><button onClick={()=>void runCandidateTests(candidate.id)} disabled={!!runningTests[candidate.id]}>{runningTests[candidate.id]?"Running offline checks…":"Run offline checks"}</button>{testRuns[candidate.id]&&<div className="test-report"><b>{testRuns[candidate.id].status.toUpperCase()} · {testRuns[candidate.id].passed_cases}/{testRuns[candidate.id].total_cases} cases passed</b><small>Regression: {testRuns[candidate.id].regression_report.status}</small>{testRuns[candidate.id].case_results.map(result=><small key={result.name}>{result.status==="passed"?"✓":"✕"} {result.name} · {result.scenario_type}</small>)}{testRuns[candidate.id].regression_report.regressions.map(name=><small key={name}>Regression: {name}</small>)}</div>}<small className="muted">Not approved · Not deployable</small></article>)}
         </section>
       </> : <>
