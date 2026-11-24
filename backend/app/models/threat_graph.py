@@ -60,3 +60,19 @@ class ThreatRelationship(Base):
     source_url: Mapped[str | None] = mapped_column(String(2048))
     description: Mapped[str] = mapped_column(Text, default="", nullable=False)
     observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ThreatEntityEvidence(Base):
+    __tablename__ = "threat_entity_evidence"
+    __table_args__ = (
+        UniqueConstraint("entity_id", "source_name", "source_reference", name="uq_threat_entity_evidence_source"),
+        Index("ix_threat_entity_evidence_entity", "entity_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    entity_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("threat_entities.id", ondelete="CASCADE"), nullable=False)
+    source_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    source_reference: Mapped[str] = mapped_column(String(512), nullable=False)
+    source_url: Mapped[str | None] = mapped_column(String(2048))
+    confidence: Mapped[int] = mapped_column(Integer, default=50, nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
