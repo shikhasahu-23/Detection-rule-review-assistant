@@ -1,8 +1,8 @@
 """Orchestrate feed ingestion, enrichment, correlation and safe candidate generation."""
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from collections.abc import Callable
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import desc, func, select
@@ -67,7 +67,7 @@ def run_intelligence_pipeline(
     for name, syncer in syncers.items():
         try:
             stage_results[name] = {"status": "succeeded", "result": syncer(db)}
-        except Exception as exc:  # noqa: BLE001 - pipeline stages must report independent failures and continue
+        except Exception as exc:  # noqa: BLE001 - pipeline stages isolate and record failures  # noqa: BLE001 - pipeline stages must report independent failures and continue
             db.rollback()
             message = f"{type(exc).__name__}: {str(exc)[:400]}"
             stage_results[name] = {"status": "failed", "error": message}
@@ -88,7 +88,7 @@ def run_intelligence_pipeline(
             "status": "succeeded", "indicators_processed": enriched,
             "limit": enrich_limit,
         }
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - pipeline stages isolate and record failures
         db.rollback()
         message = f"{type(exc).__name__}: {str(exc)[:400]}"
         stage_results["enrichment"] = {"status": "failed", "error": message}
@@ -102,7 +102,7 @@ def run_intelligence_pipeline(
             "status": "succeeded", "opportunities_found": len(opportunities),
             "method": "exact ATT&CK technique and CVE references only",
         }
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - pipeline stages isolate and record failures
         db.rollback()
         message = f"{type(exc).__name__}: {str(exc)[:400]}"
         stage_results["correlation"] = {"status": "failed", "error": message}
@@ -138,7 +138,7 @@ def run_intelligence_pipeline(
                     continue
                 try:
                     draft = active_provider.generate(_intent_payload(intent), platform)
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - pipeline stages isolate and record failures
                     generation_errors.append(
                         f"{intent.id}/{platform.value}: {type(exc).__name__}: {str(exc)[:300]}"
                     )
@@ -162,7 +162,7 @@ def run_intelligence_pipeline(
                     ))
                     db.commit()
                     created += 1
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - pipeline stages isolate and record failures
                     db.rollback()
                     run = db.get(PipelineRun, run.id)
                     generation_errors.append(
@@ -180,7 +180,7 @@ def run_intelligence_pipeline(
         }
         if generation_errors:
             failures.extend(generation_errors[:10])
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - pipeline stages isolate and record failures
         db.rollback()
         message = f"{type(exc).__name__}: {str(exc)[:400]}"
         stage_results["candidate_generation"] = {"status": "failed", "error": message}
