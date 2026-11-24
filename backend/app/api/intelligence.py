@@ -2,9 +2,10 @@ from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.authorization import Principal, assert_organization_access, get_current_principal
@@ -17,18 +18,7 @@ from app.models.intelligence import (
     IntelRecord,
     IntelSource,
     ThreatEntity,
-)rom datetime import UTC, datetime
-from typing import Annotated
-from uuid import UUID
-
-from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import func, select
-from sqlalchemy.orm import Session
-
-from app.core.authorization import Principal, assert_organization_access, get_current_principal
-from app.db.session import get_db
-from app.models.intelligence import (\n    AttackTechniqueMapping,\n    IngestionRun,\n    IntelEntityLink,\n    IntelQuarantineRecord,\n    IntelRecord,\n    IntelSource,\n    ThreatEntity,\n)
+)
 
 router = APIRouter(prefix="/api/v1/intelligence", tags=["intelligence"])
 
@@ -334,7 +324,6 @@ def link_indicator_to_entity(
         ThreatEntity.organization_id == organization_id,
     ))
     if record is None or entity is None:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Resource not found")
     link = db.scalar(select(IntelEntityLink).where(
         IntelEntityLink.organization_id == organization_id,
@@ -370,7 +359,6 @@ def create_attack_mapping(
         ThreatEntity.organization_id == organization_id,
     ))
     if entity is None:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Resource not found")
     mapping = db.scalar(select(AttackTechniqueMapping).where(
         AttackTechniqueMapping.organization_id == organization_id,
@@ -421,7 +409,6 @@ def list_entity_relationships(
         ThreatEntity.id == entity_id, ThreatEntity.organization_id == organization_id
     ))
     if entity is None:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Resource not found")
     links = db.scalars(select(IntelEntityLink).where(
         IntelEntityLink.organization_id == organization_id,
@@ -442,7 +429,6 @@ def list_attack_mappings(
         ThreatEntity.id == entity_id, ThreatEntity.organization_id == organization_id
     ))
     if entity is None:
-        from fastapi import HTTPException
         raise HTTPException(status_code=404, detail="Resource not found")
     mappings = db.scalars(select(AttackTechniqueMapping).where(
         AttackTechniqueMapping.organization_id == organization_id,
