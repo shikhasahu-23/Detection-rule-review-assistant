@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
-from app.models.threat_graph import ThreatEntity, ThreatRelationship
+from app.models.threat_graph import ThreatEntity, ThreatEntityEvidence, ThreatRelationship
 from app.services.threat_graph import import_stix_bundle
 
 
@@ -67,11 +67,13 @@ def test_stix_import_creates_entities_and_provenance_backed_relationships():
     result = import_stix_bundle(db, sample_bundle(), source_name="Partner CTI")
     entities = db.scalars(select(ThreatEntity).order_by(ThreatEntity.entity_type)).all()
     relationships = db.scalars(select(ThreatRelationship)).all()
+    evidence = db.scalars(select(ThreatEntityEvidence)).all()
 
     assert result["entities_created"] == 2
     assert result["relationships_created"] == 1
     assert result["objects_skipped"] == 1
     assert len(entities) == 2
+    assert len(evidence) == 2
     assert entities[0].source_name == "Partner CTI"
     assert entities[0].confidence == 70 or entities[0].confidence == 85
     assert relationships[0].relationship_type == "uses"
@@ -93,6 +95,7 @@ def test_stix_import_is_idempotent_and_updates_existing_records():
     assert second["relationships_updated"] == 1
     assert len(db.scalars(select(ThreatEntity)).all()) == 2
     assert len(db.scalars(select(ThreatRelationship)).all()) == 1
+    assert len(db.scalars(select(ThreatEntityEvidence)).all()) == 2
 
 
 def test_stix_import_rejects_invalid_or_oversized_bundle():
@@ -122,3 +125,19 @@ def test_stix_relationship_requires_both_endpoint_entities():
     result = import_stix_bundle(db, bundle, source_name="Partner CTI")
     assert result["relationships_created"] == 0
     assert result["objects_skipped"] == 1
+
+
+
+def test_entity_evidence_is_preserved_across_multiple_sources():
+    db = make_session()
+    bundle = sample_bundle()
+    bundle["objects"] = bundle["objects"][:2]
+    import_stix_bundle(db, bundle, source_name="Partner One")
+    import_stix_bundle(db, bundle, source_name="Partner Two")
+
+    entity = db.scalar(select(ThreatEntity).where(ThreatEntity.entity_type == "threat_actor"))
+    evidence = db.scalars(select(ThreatEntityEvidence).where(
+        ThreatEntityEvidence.entity_id == entity.id
+    )).all()
+    assert len(evidence) == 2
+    assert {row.source_name for row in evidence} == {"Partner One", "Partner Two"}
