@@ -12,10 +12,12 @@ type Feed = { name: string; status: string; last_run: string; records_seen: numb
 type DetectionIntent = { id: string; title: string; description: string; behavior: string; severity: string; target_platforms: string[]; status: string };
 type RuleCandidate = { id: string; name: string; platform: string; query: string; version: number; status: string; validation_status: string; validation_report: { errors: {code:string;message:string}[]; warnings: {code:string;message:string}[]; is_deployable: boolean }; generator: string };
 type AttackTechnique = { id: string; external_id: string; name: string; description: string; platforms: string[]; tactics: string[]; is_subtechnique: boolean; revoked: boolean; deprecated: boolean; source_url: string };
+type Opportunity = { intent_id: string; title: string; severity: string; status: string; target_platforms: string[]; association_type: string; indicators: { indicator_id: string; indicator_type: string; value: string; confidence: number; severity: string; freshness: string; evidence_count: number }[]; matched_techniques: string[]; matched_cves: string[]; indicator_count: number; evidence_count: number; rationale: string };
 
 const nav = [
   { label: "Overview", icon: Layers3 },
   { label: "Threat intelligence", icon: Radar },
+  { label: "Correlation", icon: BrainCircuit },
   { label: "ATT&CK catalog", icon: ShieldCheck },
   { label: "Rule generator", icon: Sparkles },
   { label: "Validation", icon: ShieldCheck },
@@ -52,6 +54,8 @@ function App() {
   const [libraryPlatform, setLibraryPlatform] = useState("");
   const [libraryValidation, setLibraryValidation] = useState("");
   const [libraryOffset, setLibraryOffset] = useState(0);
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [loadingOpportunities, setLoadingOpportunities] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -213,6 +217,23 @@ function App() {
     if (page === "Rule library") void loadRuleLibrary();
   }, [page, loadRuleLibrary]);
 
+  const loadOpportunities = useCallback(async () => {
+    setLoadingOpportunities(true);
+    try {
+      const response = await fetch(`${API}/api/v1/intelligence/detection-opportunities?limit=100`);
+      if (!response.ok) throw new Error("Unable to load detection opportunities.");
+      setOpportunities(await response.json());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to load detection opportunities.");
+    } finally {
+      setLoadingOpportunities(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (page === "Correlation") void loadOpportunities();
+  }, [page, loadOpportunities]);
+
   const selectedIntent = intents.find((item) => item.id === selectedIntentId);
   const syncNvd = async () => {
     setSyncingNvd(true); setError(""); setNotice("");
@@ -249,7 +270,7 @@ function App() {
     <main>
       <header><span>Workspace　›　<b>{page}</b></span><small><span className="live-dot"/> DEVELOPMENT</small></header>
       <section className="heading">
-        <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>{page === "Threat intelligence" ? "Threat Intelligence Center" : page === "ATT&CK catalog" ? "MITRE ATT&CK Catalog" : page === "Rule generator" ? "Detection Rule Generator" : "Good morning, team 👋"}</h1><p>Monitor threat intelligence, preserve source evidence, and prepare trusted inputs for detection engineering.</p></div>
+        <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>{page === "Threat intelligence" ? "Threat Intelligence Center" : page === "ATT&CK catalog" ? "MITRE ATT&CK Catalog" : page === "Rule generator" ? "Detection Rule Generator" : page === "Correlation" ? "Intelligence Correlation" : "Good morning, team 👋"}</h1><p>Monitor threat intelligence, preserve source evidence, and prepare trusted inputs for detection engineering.</p></div>
         {page === "Threat intelligence" && <div className="feed-actions"><button onClick={syncCisa} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncing ? "spin" : ""}/>{syncing ? "Syncing CISA…" : "Sync CISA KEV"}</button><button onClick={syncNvd} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncingNvd ? "spin" : ""}/>{syncingNvd ? "Syncing NVD…" : "Sync NVD CVEs"}</button><label className="upload-button">{uploadingCsv?"Importing CSV…":"Import CSV"}<input type="file" accept=".csv,text/csv" disabled={uploadingCsv} onChange={e=>{const input=e.currentTarget;const file=input.files?.[0];input.value="";if(file)void importCsv(file);}}/></label></div>}
         {page === "ATT&CK catalog" && <button onClick={syncAttack} disabled={syncingAttack}><RefreshCw size={16} className={syncingAttack ? "spin" : ""}/>{syncingAttack ? "Syncing catalog…" : "Sync ATT&CK"}</button>}
       </section>
@@ -277,6 +298,19 @@ function App() {
             {attackTechniques.filter(item=>[item.external_id,item.name,item.description,...item.tactics,...item.platforms].join(" ").toLowerCase().includes(attackSearch.toLowerCase())).map(item=><tr key={item.id}><td><b>{item.external_id} · {item.name}</b><small>{item.description}</small></td><td>{item.tactics.join(", ") || "—"}</td><td>{item.platforms.join(", ") || "—"}</td><td>{item.is_subtechnique?"Sub-technique":"Technique"}</td><td><span className="status-pill">{item.revoked?"Revoked":item.deprecated?"Deprecated":"Active"}</span></td></tr>)}
             {attackTechniques.length===0 && <tr><td colSpan={5} className="no-data">No ATT&CK techniques loaded. Select Sync ATT&CK to import the official catalog.</td></tr>}
           </tbody></table></div>
+        </section>
+      </> : page === "Correlation" ? <>
+        <section className="banner"><BrainCircuit/><div><b>Evidence-backed detection opportunities</b><p>Correlations are created only from exact ATT&CK technique IDs or CVE references shared by intelligence evidence and detection intents. No actor or campaign attribution is inferred.</p></div><span>EXPLAINABLE</span></section>
+        <section className="panel intel-panel">
+          <div className="panelhead"><div><b>Detection opportunities</b><p>Grouped by matching detection intent, with supporting indicators and source evidence counts.</p></div><button onClick={()=>void loadOpportunities()} disabled={loadingOpportunities}><RefreshCw size={15} className={loadingOpportunities?"spin":""}/> Refresh</button></div>
+          {opportunities.map(item=><article className="candidate-card" key={item.intent_id}>
+            <div className="candidate-title"><div><b>{item.title}</b><small>{item.severity.toUpperCase()} · {item.status.toUpperCase()} · {item.target_platforms.map(p=>p.toUpperCase()).join(", ")}</small></div><span>{item.indicator_count} indicators</span></div>
+            <p className="muted">{item.rationale}</p>
+            <div className="library-filters">{item.matched_techniques.map(id=><span className="type-pill" key={id}>ATT&amp;CK {id}</span>)}{item.matched_cves.map(id=><span className="type-pill" key={id}>{id}</span>)}</div>
+            <div className="table-wrap"><table><thead><tr><th>INDICATOR</th><th>SEVERITY</th><th>CONFIDENCE</th><th>FRESHNESS</th><th>EVIDENCE</th></tr></thead><tbody>{item.indicators.map(ind=><tr key={ind.indicator_id}><td><b>{ind.value}</b><small>{ind.indicator_type.toUpperCase()}</small></td><td>{ind.severity}</td><td>{ind.confidence}%</td><td>{ind.freshness}</td><td>{ind.evidence_count}</td></tr>)}</tbody></table></div>
+            <small className="muted">{item.evidence_count} total source evidence records · Association: explicit reference</small>
+          </article>)}
+          {!loadingOpportunities && opportunities.length===0&&<p className="no-data">No evidence-backed detection opportunities yet. Import or sync intelligence and create detection intents with matching ATT&amp;CK IDs or CVE evidence references.</p>}
         </section>
       </> : page === "Rule generator" ? <>
         <section className="banner"><Sparkles/><div><b>AI-assisted detection generation</b><p>Describe behavior once, then create platform-specific draft candidates. Generated queries require analyst review.</p></div><span>HUMAN REVIEW</span></section>

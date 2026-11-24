@@ -59,17 +59,22 @@ Deliver a team application that ingests threat intelligence daily, enriches and 
 
 ## Phase 3 — Enrichment, correlation and detection intent
 
-**Deliverables**
-- Threat entities for actors, malware, campaigns, tools, vulnerabilities and infrastructure.
-- ATT&CK mapping with rationale and confidence.
-- Indicator lifecycle scoring and stale/expired flags.
-- Correlation of related intel into detection opportunities.
+**Delivered foundation**
+- Read-only indicator enrichment joins source evidence to the synchronized ATT&CK catalog using exact technique IDs found in indicator metadata or source evidence.
+- Detection opportunities are grouped by detection intent only when an exact ATT&CK technique ID or CVE identifier is shared with indicator evidence.
+- Results expose provenance, evidence counts, confidence, severity, freshness, platform targets and an explicit correlation rationale.
+- Heuristic actor, malware and campaign attribution is deliberately not inferred.
 - Platform-neutral detection intent schema and preview.
+
+**Remaining deliverables**
+- Threat entity models for actors, malware, campaigns, tools and infrastructure.
+- Additional relationship evidence and analyst-confirmed associations.
+- Configurable lifecycle scoring and expiry policies.
 - Organization-configurable data-source and field catalog.
 
 **Acceptance criteria**
-- Clusters retain links to all contributing evidence.
-- Uncertain ATT&CK mappings are labeled.
+- Correlation results retain links to contributing indicators and their evidence counts.
+- Uncertain or inferred mappings are not presented as confirmed.
 - Detection intent includes required telemetry, behavior, test scenarios and evidence.
 - Analysts can inspect and edit intent before generation.
 
