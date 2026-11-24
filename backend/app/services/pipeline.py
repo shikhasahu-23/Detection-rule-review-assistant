@@ -67,7 +67,7 @@ def run_intelligence_pipeline(
     for name, syncer in syncers.items():
         try:
             stage_results[name] = {"status": "succeeded", "result": syncer(db)}
-        except Exception as exc:  # noqa: BLE001 - pipeline stages isolate and record failures  # noqa: BLE001 - pipeline stages must report independent failures and continue
+        except Exception as exc:  # noqa: BLE001 - pipeline stages isolate and record failures
             db.rollback()
             message = f"{type(exc).__name__}: {str(exc)[:400]}"
             stage_results[name] = {"status": "failed", "error": message}
