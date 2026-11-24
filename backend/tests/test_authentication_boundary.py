@@ -1,5 +1,6 @@
-import app.main
 import fastapi.testclient
+
+import app.main
 
 
 client = fastapi.testclient.TestClient(app.main.app)
@@ -33,7 +34,7 @@ def test_identity_headers_cannot_create_a_trusted_principal():
         "/api/v1/identity/me",
         headers={
             "X-User-ID": "00000000-0000-0000-0000-000000000001",
-            "X-Organization-ID": str(uuid4()),
+            "X-Organization-ID": "00000000-0000-0000-0000-000000000001",
             "X-Role": "Admin",
         },
     )
