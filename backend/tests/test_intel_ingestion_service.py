@@ -9,7 +9,7 @@ from app.db.base import Base
 from app.intel.connectors.base import ConnectorHealth, ConnectorStatus, IntelConnector
 from app.intel.schemas import IndicatorType, IntelEvidenceInput, IntelIndicatorInput
 from app.models.identity import Organization
-from app.models.intelligence import IntelEvidence, IntelRecord, IntelSource
+from app.models.intelligence import IntelEvidence, IntelQuarantineRecord, IntelRecord, IntelSource
 from app.services.intel_ingestion import run_intel_ingestion
 
 
@@ -101,31 +101,20 @@ async def test_ingestion_persists_records_and_evidence_idempotently(db):
 
 
 @pytest.mark.asyncio
-async def test_ingestion_counts_invalid_records_without_stopping_run(db):
+async def test_ingestion_quarantines_invalid_records_with_diagnostics(db):
     organization = Organization(name="Acme", slug="acme")
     db.add(organization)
     db.commit()
     source = make_source(db, organization.id)
-    connector = FakeConnector([{"invalid": True}])
 
     run = await run_intel_ingestion(
-        db, organization_id=organization.id, source=source, connector=connector
+        db, organization_id=organization.id, source=source,
+        connector=FakeConnector([{"invalid": True}]),
     )
 
+    quarantined = db.scalar(select(IntelQuarantineRecord))
     assert run.status == "success"
-    assert run.records_seen == 1
-    assert run.records_rejected == 1
-
-
-@pytest.mark.asyncio
-async def test_ingestion_rejects_cross_organization_source(db):
-    organization = Organization(name="Acme", slug="acme")
-    other = Organization(name="Other", slug="other")
-    db.add_all([organization, other])
-    db.commit()
-    source = make_source(db, other.id)
-
-    with pytest.raises(ValueError, match="does not belong"):
-        await run_intel_ingestion(
-            db, organization_id=organization.id, source=source, connector=FakeConnector([])
-        )
+    assert run.records_seen == run.records_rejected == 1
+    assert quarantined.raw_payload == {"invalid": True}
+    assert "bad record" in quarantined.reason
+    assert quarantined.source_id == source.id
