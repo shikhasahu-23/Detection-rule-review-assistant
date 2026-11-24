@@ -126,9 +126,13 @@ def _external_id(obj: dict) -> str | None:
         if not isinstance(reference, dict):
             continue
         external_id = reference.get("external_id")
-        if reference.get("source_name") == "mitre-attack" and isinstance(external_id, str):
-            if external_id.startswith("T") and len(external_id) <= 16:
-                return external_id
+        if (
+            reference.get("source_name") == "mitre-attack"
+            and isinstance(external_id, str)
+            and external_id.startswith("T")
+            and len(external_id) <= 16
+        ):
+            return external_id
     return None
 
 
