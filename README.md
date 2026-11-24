@@ -12,12 +12,17 @@ A team-oriented, threat-intelligence-driven detection engineering platform.
 - Targets: Splunk SPL, Chronicle YARA-L 2.0, Sentinel KQL, and CrowdStrike Next-Gen SIEM query language.
 - Only approved rule versions may be exported/deployed.
 
-## Phase 0 foundation
-- React + TypeScript + Vite dashboard scaffold.
-- Python 3.12 + FastAPI API scaffold.
-- PostgreSQL and Redis services in Docker Compose.
-- Celery dependency and configuration foundation for later background jobs.
-- Environment template, `.gitignore`, API health/readiness endpoints, and starter tests.
+## Current foundation
+- React + TypeScript + Vite dashboard with API/database readiness status.
+- Python 3.12 + FastAPI API, PostgreSQL models and Alembic migration foundation.
+- Organization-scoped identity and role authorization checks. Authentication-provider middleware is not configured; protected business APIs intentionally return 401 until trusted identity integration is implemented.
+- Canonical intelligence schemas, source-evidence persistence, deduplication, quarantine and ingestion history.
+- Connector implementations for CISA KEV, NVD, URLhaus and ThreatFox, with unit tests using mocked HTTP responses.
+- Celery ingestion tasks and a daily 02:00 UTC Beat schedule for a separately running worker/scheduler.
+- Docker Compose local stack, API health/readiness endpoints and GitHub Actions checks.
+
+## Deployment limitations
+The current Render Blueprint deploys the API and static frontend only. It does not deploy the Celery worker or scheduler, so scheduled ingestion does not run on Render. No production identity provider, feed credentials, LLM provider, rule generation, validation or approval workflow is enabled. The dashboard deliberately keeps protected areas locked while authentication is deferred. See [Deployment notes](docs/DEPLOYMENT.md).
 
 ## Run locally
 
