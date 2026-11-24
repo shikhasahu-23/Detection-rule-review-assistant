@@ -4,8 +4,8 @@ services:
     name: detectionops-api
     runtime: docker
     rootDir: backend
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
     branch: feature/phase-0-foundation
     plan: free
     region: singapore
