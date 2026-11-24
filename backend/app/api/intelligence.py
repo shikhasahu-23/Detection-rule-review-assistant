@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
@@ -11,6 +11,7 @@ from app.db.session import get_db
 from app.models.attack import AttackTechnique
 from app.models.intelligence import FeedRun, Indicator, SourceEvidence
 from app.services.cisa_kev import sync_cisa_kev
+from app.services.custom_csv import sync_custom_csv
 from app.services.mitre_attack import sync_attack_catalog
 from app.services.nvd import sync_nvd_cves
 
@@ -145,3 +146,23 @@ def list_attack_techniques(
         "deprecated": row.deprecated, "source_url": row.source_url,
         "modified_at": row.modified_at,
     } for row in rows]
+
+
+@router.post("/feeds/custom/csv")
+async def import_custom_csv(request: Request, db: Annotated[Session, Depends(get_db)]) -> dict:
+    if request.headers.get("content-type", "").split(";")[0].strip().lower() != "text/csv":
+        raise HTTPException(status_code=415, detail="Content-Type must be text/csv")
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > 2_000_000:
+            raise HTTPException(status_code=413, detail="CSV import is limited to 2 MB")
+        body.extend(chunk)
+    try:
+        csv_text = bytes(body).decode("utf-8-sig")
+        return sync_custom_csv(db, csv_text)
+    except UnicodeDecodeError as exc:
+        raise HTTPException(status_code=400, detail="CSV must be UTF-8 encoded") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Custom CSV ingestion failed") from exc

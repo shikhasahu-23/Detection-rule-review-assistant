@@ -46,6 +46,7 @@ function App() {
   const [attackTechniques, setAttackTechniques] = useState<AttackTechnique[]>([]);
   const [attackSearch, setAttackSearch] = useState("");
   const [syncingAttack, setSyncingAttack] = useState(false);
+  const [uploadingCsv, setUploadingCsv] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -82,6 +83,21 @@ function App() {
     } finally {
       setSyncing(false);
     }
+  };
+
+  const importCsv = async (file: File) => {
+    setUploadingCsv(true); setError(""); setNotice("");
+    try {
+      const response = await fetch(`${API}/api/v1/intelligence/feeds/custom/csv`, {
+        method: "POST", headers: { "Content-Type": "text/csv" }, body: file,
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || "CSV import failed.");
+      setNotice(`CSV import ${body.status}: ${body.indicators_created} new indicators, ${body.evidence_created} evidence records, ${body.rejected_count} rejected rows.`);
+      await loadData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "CSV import failed.");
+    } finally { setUploadingCsv(false); }
   };
 
   const loadAttackCatalog = useCallback(async () => {
@@ -210,7 +226,7 @@ function App() {
       <header><span>Workspace　›　<b>{page}</b></span><small><span className="live-dot"/> DEVELOPMENT</small></header>
       <section className="heading">
         <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>{page === "Threat intelligence" ? "Threat Intelligence Center" : page === "ATT&CK catalog" ? "MITRE ATT&CK Catalog" : page === "Rule generator" ? "Detection Rule Generator" : "Good morning, team 👋"}</h1><p>Monitor threat intelligence, preserve source evidence, and prepare trusted inputs for detection engineering.</p></div>
-        {page === "Threat intelligence" && <div className="feed-actions"><button onClick={syncCisa} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncing ? "spin" : ""}/>{syncing ? "Syncing CISA…" : "Sync CISA KEV"}</button><button onClick={syncNvd} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncingNvd ? "spin" : ""}/>{syncingNvd ? "Syncing NVD…" : "Sync NVD CVEs"}</button></div>}
+        {page === "Threat intelligence" && <div className="feed-actions"><button onClick={syncCisa} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncing ? "spin" : ""}/>{syncing ? "Syncing CISA…" : "Sync CISA KEV"}</button><button onClick={syncNvd} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncingNvd ? "spin" : ""}/>{syncingNvd ? "Syncing NVD…" : "Sync NVD CVEs"}</button><label className="upload-button">{uploadingCsv?"Importing CSV…":"Import CSV"}<input type="file" accept=".csv,text/csv" disabled={uploadingCsv} onChange={e=>{const input=e.currentTarget;const file=input.files?.[0];input.value="";if(file)void importCsv(file);}}/></label></div>}
         {page === "ATT&CK catalog" && <button onClick={syncAttack} disabled={syncingAttack}><RefreshCw size={16} className={syncingAttack ? "spin" : ""}/>{syncingAttack ? "Syncing catalog…" : "Sync ATT&CK"}</button>}
       </section>
       {error && <div className="notice error"><AlertTriangle size={16}/>{error}<button onClick={loadData}>Retry</button></div>}
