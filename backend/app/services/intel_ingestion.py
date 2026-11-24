@@ -5,7 +5,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.intel.connectors.base import IntelConnector
-from app.models.intelligence import IngestionRun, IntelEvidence, IntelRecord, IntelSource
+from app.models.intelligence import (
+    IngestionRun,
+    IntelEvidence,
+    IntelQuarantineRecord,
+    IntelRecord,
+    IntelSource,
+)
 
 
 def _latest_checkpoint(db: Session, source_id: UUID, organization_id: UUID) -> dict[str, str] | None:
@@ -22,6 +28,13 @@ def _latest_checkpoint(db: Session, source_id: UUID, organization_id: UUID) -> d
     return previous.checkpoint or None if previous is not None else None
 
 
+def _safe_payload(raw_record: object) -> dict:
+    if isinstance(raw_record, dict):
+        # Keep quarantine bounded and JSON-compatible; never persist connector configuration.
+        return {str(key)[:120]: value for key, value in list(raw_record.items())[:50]}
+    return {"value": str(raw_record)[:2000]}
+
+
 async def run_intel_ingestion(
     db: Session,
     *,
@@ -30,12 +43,7 @@ async def run_intel_ingestion(
     connector: IntelConnector,
     parser_version: str = "1",
 ) -> IngestionRun:
-    """Fetch, normalize and idempotently persist one source run.
-
-    The service commits its own run so failed fetches remain visible in ingestion history.
-    Connector credentials must be supplied through the source's protected configuration
-    by the caller; this service never logs or returns that configuration.
-    """
+    """Fetch and idempotently persist indicators; quarantine malformed source records."""
     if source.organization_id != organization_id:
         raise ValueError("Intel source does not belong to the requested organization")
     run = IngestionRun(
@@ -54,8 +62,7 @@ async def run_intel_ingestion(
             try:
                 indicators = connector.parse(raw_record)
                 if not indicators:
-                    run.records_rejected += 1
-                    continue
+                    raise ValueError("Connector returned no indicators")
                 for indicator in indicators:
                     record = db.scalar(
                         select(IntelRecord).where(
@@ -114,8 +121,17 @@ async def run_intel_ingestion(
                                     parser_version=parser_version,
                                 )
                             )
-            except (TypeError, ValueError):
+            except (TypeError, ValueError) as exc:
                 run.records_rejected += 1
+                db.add(
+                    IntelQuarantineRecord(
+                        organization_id=organization_id,
+                        source_id=source.id,
+                        ingestion_run_id=run.id,
+                        raw_payload=_safe_payload(raw_record),
+                        reason=f"{type(exc).__name__}: {str(exc)[:450]}",
+                    )
+                )
         run.checkpoint = dict(connector.get_checkpoint() or {})
         run.status = "success"
         run.completed_at = datetime.now(UTC)
@@ -124,7 +140,6 @@ async def run_intel_ingestion(
         db.rollback()
         run.status = "failed"
         run.completed_at = datetime.now(UTC)
-        # Keep diagnostics bounded and avoid serializing connector configuration.
         run.error_summary = f"{type(exc).__name__}: intelligence ingestion failed"
         db.add(run)
         db.commit()
