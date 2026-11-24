@@ -17,6 +17,8 @@ from app.services.generation import (
     get_generation_provider,
 )
 from app.services.validation import validate_candidate
+from app.services.platforms import get_platform_contract
+from datetime import UTC, datetime
 
 router = APIRouter(prefix="/api/v1/detection-intents", tags=["detection generation"])
 DbSession = Annotated[Session, Depends(get_db)]
@@ -59,7 +61,7 @@ def generate_candidates(intent_id: UUID, payload: GenerationRequest, db: DbSessi
         version = db.scalar(select(func.max(RuleCandidate.version)).where(
             RuleCandidate.intent_id == intent_id, RuleCandidate.platform == platform.value
         )) or 0
-        report = validate_candidate(platform, draft.query)
+        report = validate_candidate(platform, draft.query, intent_data)
         candidates.append(RuleCandidate(
             intent_id=intent_id,
             name=draft.name,
@@ -69,6 +71,13 @@ def generate_candidates(intent_id: UUID, payload: GenerationRequest, db: DbSessi
             status="candidate",
             validation_status=report["status"],
             validation_report=report,
+            generation_metadata={
+                "provider": "openai",
+                "model": getattr(provider, "model", "configured-provider"),
+                "prompt_version": get_platform_contract(platform).prompt_version,
+                "generated_at": datetime.now(UTC).isoformat(),
+                "validation_scope": get_platform_contract(platform).validation_scope,
+            },
             generator="openai",
         ))
     db.add_all(candidates)
