@@ -31,7 +31,7 @@ def create_intent():
         "description": "Detects PowerShell downloading executable content from external hosts.",
         "behavior": "A PowerShell process retrieves a remote payload and writes it to disk.",
         "required_telemetry": [{"source": "endpoint", "description": "Process events"}],
-        "target_platforms": ["splunk", "sentinel", "chronicle", "crowdstrike"],
+        "target_platforms": ["splunk"],
     })
     assert response.status_code == 201
     return response.json()["id"]
@@ -53,15 +53,10 @@ def test_candidate_is_saved_as_unapproved_and_validation_reported():
 def test_candidate_rejects_platform_not_in_intent():
     intent_id = create_intent()
     response = client.post(f"/api/v1/detection-intents/{intent_id}/candidates", json={
-        "name": "PowerShell download", "platform": "splunk",
-        "query": "search index=endpoint",
-    })
-    assert response.status_code == 201
-    second = client.post(f"/api/v1/detection-intents/{intent_id}/candidates", json={
-        "name": "Other platform rule", "platform": "chronicle",
+        "name": "Chronicle rule", "platform": "chronicle",
         "query": "rule x { events: $e.metadata.event_type = \"PROCESS_LAUNCH\" condition: $e }",
     })
-    assert second.status_code == 201
+    assert response.status_code == 422
 
 
 def test_candidate_rejects_unknown_intent():
