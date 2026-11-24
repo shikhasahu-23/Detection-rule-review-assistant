@@ -493,7 +493,7 @@ function App() {
           {candidates.length===0&&<p className="no-data">No rules match the selected filters.</p>}
           <div className="library-pagination"><button disabled={libraryOffset===0} onClick={()=>setLibraryOffset(x=>Math.max(0,x-100))}>Previous</button><span>Showing {libraryOffset+1}–{libraryOffset+candidates.length}</span><button disabled={candidates.length<100} onClick={()=>setLibraryOffset(x=>x+100)}>Next</button></div>
         </section>
-      {page === "Effectiveness" ? <>
+      </> : page === "Effectiveness" ? <>
         <section className="banner"><Activity/><div><b>Detection quality and ATT&CK coverage</b><p>Transparent workflow-readiness indicators based on explicit mappings, validation, telemetry hints and offline test runs.</p></div><span>PRIORITIZATION</span></section>
         <div className="effectiveness-toolbar"><small>Updated from current database records</small><button onClick={()=>void loadEffectiveness()} disabled={loadingEffectiveness}><RefreshCw size={14} className={loadingEffectiveness?"spin":""}/> Refresh metrics</button></div>
         {effectiveness ? <>
