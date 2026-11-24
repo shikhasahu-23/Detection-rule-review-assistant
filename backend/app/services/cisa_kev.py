@@ -91,7 +91,7 @@ def sync_cisa_kev(db: Session, payload: dict | None = None) -> dict:
         db.rollback()
         failed = FeedRun(source_name=SOURCE_NAME, status="failed",
                          error_message=f"{type(exc).__name__}: {str(exc)[:500]}",
-                         completed_at=datetime.now(timezone.utc))
+                         completed_at=datetime.now(UTC))
         db.add(failed)
         db.commit()
         raise
@@ -101,6 +101,6 @@ def _parse_date(value: object) -> datetime | None:
     if not isinstance(value, str):
         return None
     try:
-        return datetime.combine(date.fromisoformat(value), datetime.min.time(), tzinfo=timezone.utc)
+        return datetime.combine(date.fromisoformat(value), datetime.min.time(), tzinfo=UTC)
     except ValueError:
         return None
