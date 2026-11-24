@@ -8,9 +8,11 @@ from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
+from app.models.attack import AttackTechnique
 from app.models.intelligence import FeedRun, Indicator, SourceEvidence
 from app.services.cisa_kev import sync_cisa_kev
 from app.services.nvd import sync_nvd_cves
+from app.services.mitre_attack import sync_attack_catalog
 
 router = APIRouter(prefix="/api/v1/intelligence", tags=["threat intelligence"])
 
@@ -104,3 +106,42 @@ def _latest_run(db: Session) -> dict | None:
         return None
     return {"source": run.source_name, "status": run.status, "started_at": run.started_at,
             "records_seen": run.records_seen, "indicators_created": run.indicators_created}
+
+
+@router.post("/feeds/mitre-attack/sync")
+def sync_mitre_attack_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
+    try:
+        return sync_attack_catalog(db)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="MITRE ATT&CK ingestion failed") from exc
+
+
+@router.get("/attack-techniques")
+def list_attack_techniques(
+    db: Annotated[Session, Depends(get_db)],
+    q: str | None = Query(default=None, max_length=200),
+    platform: str | None = Query(default=None, max_length=100),
+    tactic: str | None = Query(default=None, max_length=100),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+) -> list[dict]:
+    stmt = select(AttackTechnique).order_by(AttackTechnique.external_id).limit(limit).offset(offset)
+    if q:
+        stmt = stmt.where(
+            AttackTechnique.name.ilike(f"%{q}%") |
+            AttackTechnique.external_id.ilike(f"%{q}%")
+        )
+    rows = db.scalars(stmt).all()
+    if platform:
+        rows = [row for row in rows if platform.lower() in [value.lower() for value in row.platforms]]
+    if tactic:
+        rows = [row for row in rows if tactic.lower() in [value.lower() for value in row.tactics]]
+    return [{
+        "id": row.id, "external_id": row.external_id, "name": row.name,
+        "description": row.description, "platforms": row.platforms, "tactics": row.tactics,
+        "is_subtechnique": row.is_subtechnique, "revoked": row.revoked,
+        "deprecated": row.deprecated, "source_url": row.source_url,
+        "modified_at": row.modified_at,
+    } for row in rows]
