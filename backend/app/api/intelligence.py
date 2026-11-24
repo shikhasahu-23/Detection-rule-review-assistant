@@ -3,20 +3,27 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.attack import AttackTechnique
 from app.models.intelligence import FeedRun, Indicator, SourceEvidence
+from app.models.threat_graph import ThreatEntity, ThreatEntityEvidence, ThreatRelationship
 from app.services.cisa_kev import sync_cisa_kev
 from app.services.custom_csv import sync_custom_csv
 from app.services.enrichment import detection_opportunities, enrich_indicator
 from app.services.mitre_attack import sync_attack_catalog
 from app.services.nvd import sync_nvd_cves
+from app.services.threat_graph import ENTITY_TYPES, import_stix_bundle
 
 router = APIRouter(prefix="/api/v1/intelligence", tags=["threat intelligence"])
+
+
+class STIXImportRequest(BaseModel):
+    source_name: str = Field(min_length=1, max_length=100)
+    bundle: dict
 
 
 class IndicatorOut(BaseModel):
@@ -187,3 +194,138 @@ def list_detection_opportunities(
     limit: int = Query(default=100, ge=1, le=500),
 ) -> list[dict]:
     return detection_opportunities(db, limit=limit)
+
+
+@router.post("/feeds/custom/stix")
+def import_custom_stix(
+    payload: STIXImportRequest,
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    try:
+        return import_stix_bundle(db, payload.bundle, source_name=payload.source_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="STIX import failed") from exc
+
+
+@router.get("/threat-graph/entities")
+def list_threat_entities(
+    db: Annotated[Session, Depends(get_db)],
+    q: str | None = Query(default=None, max_length=256),
+    entity_type: str | None = Query(default=None, max_length=32),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+) -> list[dict]:
+    if entity_type and entity_type not in set(ENTITY_TYPES.values()):
+        raise HTTPException(status_code=422, detail="Unsupported threat entity type")
+    stmt = select(ThreatEntity).order_by(ThreatEntity.name).limit(limit).offset(offset)
+    if q:
+        stmt = stmt.where(
+            ThreatEntity.name.ilike(f"%{q}%")
+            | ThreatEntity.external_id.ilike(f"%{q}%")
+        )
+    if entity_type:
+        stmt = stmt.where(ThreatEntity.entity_type == entity_type)
+    rows = db.scalars(stmt).all()
+    return [{
+        "id": str(row.id), "entity_type": row.entity_type,
+        "external_id": row.external_id, "name": row.name,
+        "description": row.description, "confidence": row.confidence,
+        "source_name": row.source_name, "source_reference": row.source_reference,
+        "source_url": row.source_url, "revoked": row.revoked,
+        "deprecated": row.deprecated, "first_seen": row.first_seen,
+        "last_seen": row.last_seen,
+    } for row in rows]
+
+
+@router.get("/threat-graph/relationships")
+def list_threat_relationships(
+    db: Annotated[Session, Depends(get_db)],
+    entity_id: UUID | None = None,
+    relationship_type: str | None = Query(default=None, max_length=100),
+    limit: int = Query(default=200, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
+) -> list[dict]:
+    stmt = select(ThreatRelationship).order_by(desc(ThreatRelationship.observed_at)).limit(limit).offset(offset)
+    if entity_id:
+        stmt = stmt.where(
+            (ThreatRelationship.source_entity_id == entity_id)
+            | (ThreatRelationship.target_entity_id == entity_id)
+        )
+    if relationship_type:
+        stmt = stmt.where(ThreatRelationship.relationship_type == relationship_type)
+    rows = db.scalars(stmt).all()
+    entity_ids = {row.source_entity_id for row in rows} | {row.target_entity_id for row in rows}
+    entities = {
+        str(row.id): row.name for row in db.scalars(
+            select(ThreatEntity).where(ThreatEntity.id.in_(entity_ids))
+        ).all()
+    } if entity_ids else {}
+    return [{
+        "id": str(row.id),
+        "source_entity_id": str(row.source_entity_id),
+        "source_entity_name": entities.get(str(row.source_entity_id)),
+        "target_entity_id": str(row.target_entity_id),
+        "target_entity_name": entities.get(str(row.target_entity_id)),
+        "relationship_type": row.relationship_type,
+        "confidence": row.confidence,
+        "assertion_status": row.assertion_status,
+        "source_name": row.source_name,
+        "source_reference": row.source_reference,
+        "source_url": row.source_url,
+        "description": row.description,
+        "observed_at": row.observed_at,
+    } for row in rows]
+
+
+@router.get("/threat-graph")
+def get_threat_graph(
+    db: Annotated[Session, Depends(get_db)],
+    limit: int = Query(default=200, ge=1, le=500),
+) -> dict:
+    entities = db.scalars(select(ThreatEntity).order_by(ThreatEntity.name).limit(limit)).all()
+    entity_ids = [row.id for row in entities]
+    relationships = db.scalars(
+        select(ThreatRelationship).where(
+            ThreatRelationship.source_entity_id.in_(entity_ids),
+            ThreatRelationship.target_entity_id.in_(entity_ids),
+        ).order_by(desc(ThreatRelationship.observed_at)).limit(1000)
+    ).all() if entity_ids else []
+    return {
+        "nodes": [{
+            "id": str(row.id), "entity_type": row.entity_type,
+            "external_id": row.external_id, "name": row.name,
+            "confidence": row.confidence, "source_name": row.source_name,
+            "source_reference": row.source_reference, "source_url": row.source_url,
+            "revoked": row.revoked, "deprecated": row.deprecated,
+        } for row in entities],
+        "edges": [{
+            "id": str(row.id), "source": str(row.source_entity_id),
+            "target": str(row.target_entity_id),
+            "relationship_type": row.relationship_type,
+            "confidence": row.confidence, "assertion_status": row.assertion_status,
+            "source_name": row.source_name, "source_reference": row.source_reference,
+            "source_url": row.source_url,
+        } for row in relationships],
+        "truncated": len(entities) == limit or len(relationships) == 1000,
+    }
+
+
+@router.get("/threat-graph/entities/{entity_id}/evidence")
+def threat_entity_evidence(
+    entity_id: UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> list[dict]:
+    if db.get(ThreatEntity, entity_id) is None:
+        raise HTTPException(status_code=404, detail="Threat entity not found")
+    rows = db.scalars(select(ThreatEntityEvidence).where(
+        ThreatEntityEvidence.entity_id == entity_id
+    ).order_by(desc(ThreatEntityEvidence.observed_at))).all()
+    return [{
+        "source_name": row.source_name,
+        "source_reference": row.source_reference,
+        "source_url": row.source_url,
+        "confidence": row.confidence,
+        "observed_at": row.observed_at,
+    } for row in rows]

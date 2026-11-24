@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   Activity, AlertTriangle, ArrowUpRight, BrainCircuit, CheckCircle2, ChevronRight,
-  Database, FileSearch, Layers3, LoaderCircle, Radar, RefreshCw, ShieldCheck,
+  Database, FileSearch, Layers3, LoaderCircle, Network, Radar, RefreshCw, ShieldCheck,
   ShieldEllipsis, Sparkles, Search
 } from "lucide-react";
 
@@ -12,12 +12,16 @@ type Feed = { name: string; status: string; last_run: string; records_seen: numb
 type DetectionIntent = { id: string; title: string; description: string; behavior: string; severity: string; target_platforms: string[]; status: string };
 type RuleCandidate = { id: string; name: string; platform: string; query: string; version: number; status: string; validation_status: string; validation_report: { errors: {code:string;message:string}[]; warnings: {code:string;message:string}[]; is_deployable: boolean }; generator: string };
 type AttackTechnique = { id: string; external_id: string; name: string; description: string; platforms: string[]; tactics: string[]; is_subtechnique: boolean; revoked: boolean; deprecated: boolean; source_url: string };
+type ThreatNode = { id: string; entity_type: string; external_id: string; name: string; confidence: number; source_name: string; source_reference: string; source_url: string | null; revoked: boolean; deprecated: boolean };
+type ThreatEdge = { id: string; source: string; target: string; relationship_type: string; confidence: number; assertion_status: string; source_name: string; source_reference: string; source_url: string | null };
+type ThreatGraph = { nodes: ThreatNode[]; edges: ThreatEdge[]; truncated: boolean };
 type Opportunity = { intent_id: string; title: string; severity: string; status: string; target_platforms: string[]; association_type: string; indicators: { indicator_id: string; indicator_type: string; value: string; confidence: number; severity: string; freshness: string; evidence_count: number }[]; matched_techniques: string[]; matched_cves: string[]; indicator_count: number; evidence_count: number; rationale: string };
 
 const nav = [
   { label: "Overview", icon: Layers3 },
   { label: "Threat intelligence", icon: Radar },
   { label: "Correlation", icon: BrainCircuit },
+  { label: "Threat graph", icon: Network },
   { label: "ATT&CK catalog", icon: ShieldCheck },
   { label: "Rule generator", icon: Sparkles },
   { label: "Validation", icon: ShieldCheck },
@@ -56,6 +60,11 @@ function App() {
   const [libraryOffset, setLibraryOffset] = useState(0);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loadingOpportunities, setLoadingOpportunities] = useState(false);
+  const [threatGraph, setThreatGraph] = useState<ThreatGraph>({ nodes: [], edges: [], truncated: false });
+  const [loadingThreatGraph, setLoadingThreatGraph] = useState(false);
+  const [stixImporting, setStixImporting] = useState(false);
+  const [entityTypeFilter, setEntityTypeFilter] = useState("");
+  const [entitySearch, setEntitySearch] = useState("");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -234,6 +243,43 @@ function App() {
     if (page === "Correlation") void loadOpportunities();
   }, [page, loadOpportunities]);
 
+  const loadThreatGraph = useCallback(async () => {
+    setLoadingThreatGraph(true);
+    try {
+      const response = await fetch(`${API}/api/v1/intelligence/threat-graph?limit=500`);
+      if (!response.ok) throw new Error("Unable to load threat graph.");
+      setThreatGraph(await response.json());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to load threat graph.");
+    } finally {
+      setLoadingThreatGraph(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (page === "Threat graph") void loadThreatGraph();
+  }, [page, loadThreatGraph]);
+
+  const importStix = async (file?: File) => {
+    if (!file) return;
+    setStixImporting(true); setError(""); setNotice("");
+    try {
+      const bundle = JSON.parse(await file.text());
+      const response = await fetch(`${API}/api/v1/intelligence/feeds/custom/stix`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ source_name: file.name.slice(0, 100), bundle }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || "STIX import failed.");
+      setNotice(`STIX import complete — ${body.entities_created} entities and ${body.relationships_created} relationships created; ${body.objects_skipped} objects skipped.`);
+      await loadThreatGraph();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "STIX import failed. Check that the file is valid JSON.");
+    } finally {
+      setStixImporting(false);
+    }
+  };
+
   const selectedIntent = intents.find((item) => item.id === selectedIntentId);
   const syncNvd = async () => {
     setSyncingNvd(true); setError(""); setNotice("");
@@ -270,7 +316,7 @@ function App() {
     <main>
       <header><span>Workspace　›　<b>{page}</b></span><small><span className="live-dot"/> DEVELOPMENT</small></header>
       <section className="heading">
-        <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>{page === "Threat intelligence" ? "Threat Intelligence Center" : page === "ATT&CK catalog" ? "MITRE ATT&CK Catalog" : page === "Rule generator" ? "Detection Rule Generator" : page === "Correlation" ? "Intelligence Correlation" : "Good morning, team 👋"}</h1><p>Monitor threat intelligence, preserve source evidence, and prepare trusted inputs for detection engineering.</p></div>
+        <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>{page === "Threat intelligence" ? "Threat Intelligence Center" : page === "ATT&CK catalog" ? "MITRE ATT&CK Catalog" : page === "Rule generator" ? "Detection Rule Generator" : page === "Correlation" ? "Intelligence Correlation" : page === "Threat graph" ? "Threat Entity Graph" : "Good morning, team 👋"}</h1><p>Monitor threat intelligence, preserve source evidence, and prepare trusted inputs for detection engineering.</p></div>
         {page === "Threat intelligence" && <div className="feed-actions"><button onClick={syncCisa} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncing ? "spin" : ""}/>{syncing ? "Syncing CISA…" : "Sync CISA KEV"}</button><button onClick={syncNvd} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncingNvd ? "spin" : ""}/>{syncingNvd ? "Syncing NVD…" : "Sync NVD CVEs"}</button><label className="upload-button">{uploadingCsv?"Importing CSV…":"Import CSV"}<input type="file" accept=".csv,text/csv" disabled={uploadingCsv} onChange={e=>{const input=e.currentTarget;const file=input.files?.[0];input.value="";if(file)void importCsv(file);}}/></label></div>}
         {page === "ATT&CK catalog" && <button onClick={syncAttack} disabled={syncingAttack}><RefreshCw size={16} className={syncingAttack ? "spin" : ""}/>{syncingAttack ? "Syncing catalog…" : "Sync ATT&CK"}</button>}
       </section>
@@ -298,6 +344,20 @@ function App() {
             {attackTechniques.filter(item=>[item.external_id,item.name,item.description,...item.tactics,...item.platforms].join(" ").toLowerCase().includes(attackSearch.toLowerCase())).map(item=><tr key={item.id}><td><b>{item.external_id} · {item.name}</b><small>{item.description}</small></td><td>{item.tactics.join(", ") || "—"}</td><td>{item.platforms.join(", ") || "—"}</td><td>{item.is_subtechnique?"Sub-technique":"Technique"}</td><td><span className="status-pill">{item.revoked?"Revoked":item.deprecated?"Deprecated":"Active"}</span></td></tr>)}
             {attackTechniques.length===0 && <tr><td colSpan={5} className="no-data">No ATT&CK techniques loaded. Select Sync ATT&CK to import the official catalog.</td></tr>}
           </tbody></table></div>
+        </section>
+      </> : page === "Threat graph" ? <>
+        <section className="banner"><Network/><div><b>Source-backed threat entity graph</b><p>Explore actors, malware, campaigns, tools, infrastructure and vulnerabilities. Relationships retain source provenance and are labelled as source-observed, not independently verified.</p></div><span>STIX 2.1</span></section>
+        <section className="panel intel-panel">
+          <div className="panelhead"><div><b>Import STIX bundle</b><p>Upload a STIX 2.1 JSON bundle (up to 5,000 objects). Re-imports are idempotent.</p></div><label className="upload-button"><input type="file" accept=".json,application/json" disabled={stixImporting} onChange={e=>{void importStix(e.target.files?.[0]);e.currentTarget.value="";}}/>{stixImporting?"Importing…":"Import STIX JSON"}</label></div>
+          <div className="graph-stats"><div><b>{threatGraph.nodes.length}</b><small>Entities loaded</small></div><div><b>{threatGraph.edges.length}</b><small>Relationships loaded</small></div><div><b>{new Set(threatGraph.nodes.map(n=>n.entity_type)).size}</b><small>Entity types</small></div></div>
+          <div className="searchbar"><Search size={16}/><input value={entitySearch} onChange={e=>setEntitySearch(e.target.value)} placeholder="Search entity name or STIX ID…"/></div>
+          <div className="library-filters"><select value={entityTypeFilter} onChange={e=>setEntityTypeFilter(e.target.value)}><option value="">All entity types</option>{["threat_actor","malware","campaign","tool","infrastructure","vulnerability"].map(type=><option key={type} value={type}>{type.replaceAll("_"," ")}</option>)}</select><button onClick={()=>void loadThreatGraph()} disabled={loadingThreatGraph}><RefreshCw size={15} className={loadingThreatGraph?"spin":""}/> Refresh</button></div>
+          {threatGraph.truncated&&<p className="muted">Graph view is capped at 500 entities and 1,000 relationships. Use entity search for larger imports.</p>}
+          <div className="graph-entities">{threatGraph.nodes.filter(n=>(!entityTypeFilter||n.entity_type===entityTypeFilter)&&(`${n.name} ${n.external_id}`.toLowerCase().includes(entitySearch.toLowerCase()))).map(node=><article className="graph-node" key={node.id}><div><span>{node.entity_type.replaceAll("_"," ")}</span><b>{node.name}</b><small>{node.external_id}</small></div><div className="graph-confidence"><b>{node.confidence}%</b><small>source confidence</small></div><small className="muted">{node.source_name} · {node.revoked?"Revoked":node.deprecated?"Deprecated":"Current"}</small>{node.source_url&&<a href={node.source_url} target="_blank" rel="noreferrer">Source reference ↗</a>}</article>)}</div>
+          <div className="panelhead graph-edge-heading"><div><b>Relationships</b><p>Every edge carries a source reference, confidence and assertion status.</p></div><span>{threatGraph.edges.length} edges</span></div>
+          {threatGraph.edges.map(edge=><article className="graph-edge" key={edge.id}><div className="edge-endpoints"><b>{threatGraph.nodes.find(n=>n.id===edge.source)?.name||edge.source}</b><span>— {edge.relationship_type.replaceAll("_"," ")} →</span><b>{threatGraph.nodes.find(n=>n.id===edge.target)?.name||edge.target}</b></div><div className="edge-meta"><span>{edge.assertion_status.replaceAll("_"," ")}</span><span>{edge.confidence}% confidence</span><span>{edge.source_name}</span></div><small className="muted">Evidence: {edge.source_reference}</small>{edge.source_url&&<a href={edge.source_url} target="_blank" rel="noreferrer">Open source ↗</a>}</article>)}
+          {!loadingThreatGraph&&threatGraph.nodes.length===0&&<p className="no-data">No threat entities yet. Import a STIX 2.1 bundle to build the graph.</p>}
+          {!loadingThreatGraph&&threatGraph.nodes.length>0&&threatGraph.edges.length===0&&<p className="no-data">Entities are loaded, but no relationships with both endpoints are available yet.</p>}
         </section>
       </> : page === "Correlation" ? <>
         <section className="banner"><BrainCircuit/><div><b>Evidence-backed detection opportunities</b><p>Correlations are created only from exact ATT&CK technique IDs or CVE references shared by intelligence evidence and detection intents. No actor or campaign attribution is inferred.</p></div><span>EXPLAINABLE</span></section>
