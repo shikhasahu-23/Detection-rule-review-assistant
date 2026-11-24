@@ -50,13 +50,19 @@ def run_intelligence_pipeline(
     db.commit()
     db.refresh(run)
 
-    syncers = feed_syncers or {
+    syncers = feed_syncers if feed_syncers is not None else {
         "cisa_kev": sync_cisa_kev,
         "nvd_cves": sync_nvd_cves,
         "mitre_attack": sync_attack_catalog,
     }
     stage_results: dict = {}
     failures: list[str] = []
+
+    if not syncers:
+        stage_results["feed_ingestion"] = {
+            "status": "skipped",
+            "reason": "Feed sync jobs run independently before the scheduled enrichment pipeline.",
+        }
 
     for name, syncer in syncers.items():
         try:
@@ -177,7 +183,7 @@ def run_intelligence_pipeline(
 
     run = db.get(PipelineRun, run.id)
     run.stage_results = stage_results
-    run.status = "failed" if len(failures) == len(syncers) + 3 else "partial_success" if failures else "succeeded"
+    run.status = "failed" if failures and all(value.get("status") == "failed" for value in stage_results.values()) else "partial_success" if failures else "succeeded"
     run.error_message = "; ".join(failures)[:4000] if failures else None
     run.completed_at = datetime.now(UTC)
     db.commit()
