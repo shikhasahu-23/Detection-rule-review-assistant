@@ -1,35 +1,41 @@
 import { useEffect, useState } from "react";
-import { Activity, AlertTriangle, ArrowUpRight, Bot, BrainCircuit, CheckCircle2, ChevronRight, Database, FileSearch, Layers3, Radar, ShieldCheck, ShieldEllipsis, Sparkles } from "lucide-react";
+import { Activity, AlertTriangle, ArrowUpRight, Bot, BrainCircuit, CheckCircle2, ChevronRight, Database, FileSearch, Layers3, LockKeyhole, Radar, ShieldCheck, ShieldEllipsis, Sparkles } from "lucide-react";
 
-const nav = [{label:"Overview",icon:Layers3,active:true},{label:"Threat intelligence",icon:Radar},{label:"Rule generator",icon:Sparkles},{label:"Validation",icon:ShieldCheck},{label:"Review queue",icon:FileSearch},{label:"Rule library",icon:Database}];
-const stats = [{label:"Active intelligence",value:"—",note:"Awaiting feed setup",icon:Radar},{label:"Candidate detections",value:"0",note:"No rules generated yet",icon:BrainCircuit},{label:"Pending reviews",value:"0",note:"Human approval required",icon:FileSearch},{label:"Approved rules",value:"0",note:"Versioned rule library",icon:ShieldCheck}];
+const nav = [
+  { label: "Overview", icon: Layers3, active: true, locked: false },
+  { label: "Threat intelligence", icon: Radar, locked: true },
+  { label: "Rule generator", icon: Sparkles, locked: true },
+  { label: "Validation", icon: ShieldCheck, locked: true },
+  { label: "Review queue", icon: FileSearch, locked: true },
+  { label: "Rule library", icon: Database, locked: true },
+];
+const stats = [
+  { label: "Active intelligence", value: "—", note: "Feed setup pending", icon: Radar },
+  { label: "Candidate detections", value: "—", note: "Generation not enabled", icon: BrainCircuit },
+  { label: "Pending reviews", value: "—", note: "Review workflow not enabled", icon: FileSearch },
+  { label: "Approved rules", value: "—", note: "No authenticated rule library", icon: ShieldCheck },
+];
 
 type ApiState = "checking" | "ready" | "unavailable" | "not-configured";
 
 function ApiConnection() {
   const [state, setState] = useState<ApiState>("checking");
-
   useEffect(() => {
     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
     if (!apiBaseUrl) {
       setState("not-configured");
       return;
     }
-
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 10000);
-
     fetch(`${apiBaseUrl}/ready`, { signal: controller.signal })
       .then((response) => {
         if (!response.ok) throw new Error("API readiness check failed");
         return response.json();
       })
-      .then((result: { status?: string }) => {
-        setState(result.status === "ready" ? "ready" : "unavailable");
-      })
+      .then((result: { status?: string }) => setState(result.status === "ready" ? "ready" : "unavailable"))
       .catch(() => setState("unavailable"))
       .finally(() => window.clearTimeout(timeout));
-
     return () => {
       controller.abort();
       window.clearTimeout(timeout);
@@ -42,10 +48,53 @@ function ApiConnection() {
     unavailable: "API unavailable",
     "not-configured": "API URL not configured",
   };
-
   return <span className={`api-connection api-${state}`} role="status"><span className="api-dot" />{labels[state]}</span>;
 }
 
 export default function App() {
-  return <div className="shell"><aside className="sidebar"><div className="brand"><div className="brandmark"><ShieldEllipsis/></div><div><b>DetectionOps</b><small>REVIEW ASSISTANT</small></div></div><label>WORKSPACE</label><div className="workspace"><span>S</span><div><b>Security Engineering</b><small>Team workspace</small></div><ChevronRight size={15}/></div><nav>{nav.map(({label,icon:Icon,active})=><a className={active?"nav active":"nav"} href="#" key={label}><Icon size={17}/>{label}{label==="Review queue"&&<i>0</i>}</a>)}</nav><div className="sidebottom"><span className="live-dot"/> Platform initialized<hr/><div className="user"><b>SE</b><div>Team member<small>Workspace access</small></div></div></div></aside><main><header><span>Workspace　›　<b>Overview</b></span><div className="header-status"><ApiConnection/><small><span className="live-dot"/> DEVELOPMENT</small></div></header><section className="heading"><div><label>DETECTION ENGINEERING WORKSPACE</label><h1>Good morning, team 👋</h1><p>Your threat intelligence and detection engineering command center.</p></div><button disabled><Sparkles size={16}/> Generate detection <small>SOON</small></button></section><section className="banner"><Activity/><div><b>Your workspace is ready for configuration</b><p>Connect intelligence sources and configure your telemetry before generating detection candidates.</p></div><span>PHASE 0</span></section><section className="stats">{stats.map(({label,value,note,icon:Icon})=><article key={label}><div>{label}<Icon size={18}/></div><strong>{value}</strong><small>{note}</small></article>)}</section><section className="columns"><article className="panel"><div className="panelhead"><div><b>Getting started</b><p>Complete these steps to activate your workspace.</p></div><small>0 of 4</small></div><div className="progress"/>{[{title:"Configure intelligence sources",desc:"Connect public feeds and add custom intelligence sources",icon:Radar},{title:"Define your telemetry",desc:"Map the event sources and fields available in your SIEMs",icon:Database},{title:"Choose your AI provider",desc:"Configure an approved model provider and generation policy",icon:Bot},{title:"Invite your reviewers",desc:"Set up team roles and the human approval workflow",icon:ShieldCheck}].map(({title,desc,icon:Icon})=><div className="step" key={title}><Icon/><div><b>{title}</b><small>{desc}</small></div><label>UP NEXT</label><ChevronRight size={15}/></div>)}</article><article className="panel activity"><div className="panelhead"><div><b>Platform activity</b><p>Latest system events</p></div><ArrowUpRight/></div><div className="empty"><CheckCircle2/><b>All quiet for now</b><p>Activity will appear here as intelligence is ingested, detections are generated, and rules are reviewed.</p></div></article></section><div className="footnote"><AlertTriangle size={15}/> Generated detections will remain in review until an authorized team member approves them. Production deployment is not enabled.</div><footer>DETECTION RULE REVIEW ASSISTANT　•　TEAM WORKSPACE　•　FOUNDATION BUILD</footer></main></div>;
+  return (
+    <div className="shell">
+      <aside className="sidebar">
+        <div className="brand"><div className="brandmark"><ShieldEllipsis /></div><div><b>Threat Detection Hub</b><small>DETECTION ENGINEERING</small></div></div>
+        <label>WORKSPACE</label>
+        <div className="workspace"><span>S</span><div><b>Security Engineering</b><small>Team workspace</small></div><ChevronRight size={15} /></div>
+        <nav aria-label="Workspace navigation">
+          {nav.map(({ label, icon: Icon, active, locked }) => (
+            <a className={active ? "nav active" : locked ? "nav nav-locked" : "nav"} href={active ? "#overview" : "#"} aria-disabled={locked} key={label}>
+              <Icon size={17} />{label}{locked && <LockKeyhole className="nav-lock" size={13} />}
+            </a>
+          ))}
+        </nav>
+        <div className="sidebottom"><span className="live-dot" /> Foundation services initialized<hr /><div className="user"><b>SE</b><div>Workspace member<small>Authentication pending</small></div></div></div>
+      </aside>
+      <main id="overview">
+        <header><span>Workspace　›　<b>Overview</b></span><div className="header-status"><ApiConnection /><small><span className="live-dot" /> DEVELOPMENT</small></div></header>
+        <section className="heading">
+          <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>Welcome to Threat Detection Hub</h1><p>A foundation for threat intelligence, detection engineering and controlled rule review.</p></div>
+          <button disabled title="Available after authentication and workflow setup"><Sparkles size={16} /> Generate detection <small>LOCKED</small></button>
+        </section>
+        <section className="banner"><Activity /><div><b>Foundation services are online</b><p>The API and database can be reached. Application workflows are not enabled yet.</p></div><span>PHASE 0</span></section>
+        <section className="auth-notice" role="status">
+          <div className="auth-icon"><LockKeyhole size={18} /></div>
+          <div><b>Authentication setup is deferred</b><p>Sign-in provider selection is intentionally postponed. Protected intelligence, identity and rule operations remain unavailable until trusted authentication and organization/role mapping are configured. This keeps private workspace data behind the existing authorization checks.</p></div>
+          <span>ACCESS LOCKED</span>
+        </section>
+        <section className="stats">{stats.map(({ label, value, note, icon: Icon }) => <article key={label}><div>{label}<Icon size={18} /></div><strong>{value}</strong><small>{note}</small></article>)}</section>
+        <section className="columns">
+          <article className="panel">
+            <div className="panelhead"><div><b>Next implementation steps</b><p>Safe work that can continue before sign-in is selected.</p></div><small>0 of 3</small></div>
+            <div className="progress" />
+            {[
+              { title: "Configure intelligence sources", desc: "Review feed connectors and prepare source configuration", icon: Radar },
+              { title: "Define telemetry requirements", desc: "Document SIEM event sources and field mappings", icon: Database },
+              { title: "Choose an authentication provider", desc: "Deferred — protected workflows stay locked until decided", icon: LockKeyhole },
+            ].map(({ title, desc, icon: Icon }) => <div className="step" key={title}><Icon /><div><b>{title}</b><small>{desc}</small></div><label>NOT STARTED</label><ChevronRight size={15} /></div>)}
+          </article>
+          <article className="panel activity"><div className="panelhead"><div><b>Platform activity</b><p>Latest system events</p></div><ArrowUpRight /></div><div className="empty"><CheckCircle2 /><b>No application activity yet</b><p>Events will appear when authenticated workflows and integrations are configured.</p></div></article>
+        </section>
+        <div className="footnote"><AlertTriangle size={15} /> API readiness confirms service and database connectivity only. It does not mean a user is authenticated or that application workflows are enabled.</div>
+        <footer>THREAT DETECTION HUB　•　FOUNDATION BUILD　•　AUTHENTICATION DEFERRED</footer>
+      </main>
+    </div>
+  );
 }
