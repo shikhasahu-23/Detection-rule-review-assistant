@@ -1,8 +1,23 @@
 {
-  "name": "detection-rule-review-assistant-web",
+  "name": "threatweave-web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "scripts": {"dev": "vite", "build": "tsc -b && vite build", "preview": "vite preview"},
-  "dependencies": {"@vitejs/plugin-react": "latest", "vite": "latest", "typescript": "latest", "react": "latest", "react-dom": "latest", "lucide-react": "latest"}
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest",
+    "typescript": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "lucide-react": "latest"
+  },
+  "devDependencies": {
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0"
+  }
 }
