@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.attack import AttackTechnique
 from app.models.intelligence import FeedRun, Indicator, SourceEvidence
-from app.models.threat_graph import ThreatEntity, ThreatRelationship
+from app.models.threat_graph import ThreatEntity, ThreatEntityEvidence, ThreatRelationship
 from app.services.cisa_kev import sync_cisa_kev
 from app.services.custom_csv import sync_custom_csv
 from app.services.enrichment import detection_opportunities, enrich_indicator
@@ -310,3 +310,22 @@ def get_threat_graph(
         } for row in relationships],
         "truncated": len(entities) == limit or len(relationships) == 1000,
     }
+
+
+@router.get("/threat-graph/entities/{entity_id}/evidence")
+def threat_entity_evidence(
+    entity_id: UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> list[dict]:
+    if db.get(ThreatEntity, entity_id) is None:
+        raise HTTPException(status_code=404, detail="Threat entity not found")
+    rows = db.scalars(select(ThreatEntityEvidence).where(
+        ThreatEntityEvidence.entity_id == entity_id
+    ).order_by(desc(ThreatEntityEvidence.observed_at))).all()
+    return [{
+        "source_name": row.source_name,
+        "source_reference": row.source_reference,
+        "source_url": row.source_url,
+        "confidence": row.confidence,
+        "observed_at": row.observed_at,
+    } for row in rows]
