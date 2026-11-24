@@ -48,7 +48,7 @@ def test_bad_feed_schema_is_rejected_and_recorded():
     db = make_session()
     try:
         sync_cisa_kev(db, {"unexpected": []})
-    except ValueError:
+    except TypeError:
         pass
     else:
         raise AssertionError("invalid feed schema should fail")
