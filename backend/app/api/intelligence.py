@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import desc, func, select
 from sqlalchemy.orm import Session
@@ -18,7 +18,7 @@ from app.services.enrichment import detection_opportunities, enrich_indicator
 from app.services.mitre_attack import sync_attack_catalog
 from app.services.nvd import sync_nvd_cves
 from app.services.threat_graph import ENTITY_TYPES, import_stix_bundle
-from app.tasks.pipeline import run_pipeline
+from app.tasks.pipeline import execute_pipeline
 
 router = APIRouter(prefix="/api/v1/intelligence", tags=["threat intelligence"])
 
@@ -335,9 +335,17 @@ def threat_entity_evidence(
 
 
 @router.post("/pipeline/runs", status_code=202)
-def enqueue_intelligence_pipeline() -> dict:
-    task = run_pipeline.delay(trigger="manual", sync_feeds=True)
-    return {"task_id": task.id, "status": "queued", "message": "Full feed ingestion and intelligence pipeline queued."}
+def enqueue_intelligence_pipeline(background_tasks: BackgroundTasks) -> dict:
+    """Run the manual pipeline in the API process; no paid Celery worker is required."""
+    background_tasks.add_task(execute_pipeline, trigger="manual", sync_feeds=True)
+    return {
+        "status": "queued",
+        "execution": "in_process",
+        "message": (
+            "Full feed ingestion and intelligence pipeline started in the API background. "
+            "This run is not durable across API restarts."
+        ),
+    }
 
 
 @router.get("/pipeline/runs")
