@@ -1,5 +1,5 @@
 {
-  "name": "detection-rule-review-assistant-web",
+  "name": "threatweave-web",
   "private": true,
   "version": "0.1.0",
   "type": "module",
