@@ -81,7 +81,7 @@ def list_feeds(db: Session = Depends(get_db)) -> list[dict]:
 def sync_cisa_feed(db: Session = Depends(get_db)) -> dict:
     try:
         return sync_cisa_kev(db)
-    except ValueError as exc:
+    except (ValueError, TypeError) as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail="CISA feed ingestion failed") from exc
