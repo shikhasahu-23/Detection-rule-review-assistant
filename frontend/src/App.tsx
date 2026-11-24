@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Activity, AlertTriangle, ArrowUpRight, Bot, BrainCircuit, CheckCircle2, ChevronRight, Database, FileSearch, Layers3, LockKeyhole, Radar, ShieldCheck, ShieldEllipsis, Sparkles } from "lucide-react";
+import { Activity, AlertTriangle, ArrowUpRight, BrainCircuit, CheckCircle2, ChevronRight, Database, FileSearch, Layers3, LockKeyhole, Radar, ShieldCheck, ShieldEllipsis, Sparkles } from "lucide-react";
 
 const nav = [
   { label: "Overview", icon: Layers3, active: true, locked: false },
@@ -59,8 +59,8 @@ export default function App() {
         <label>WORKSPACE</label>
         <div className="workspace"><span>S</span><div><b>Security Engineering</b><small>Team workspace</small></div><ChevronRight size={15} /></div>
         <nav aria-label="Workspace navigation">
-          {nav.map(({ label, icon: Icon, active, locked }) => (
-            {locked ? (
+          {nav.map(({ label, icon: Icon, active, locked }) =>
+            locked ? (
               <span className="nav nav-locked" aria-disabled="true" key={label}>
                 <Icon size={17} />{label}<LockKeyhole className="nav-lock" size={13} />
               </span>
@@ -68,8 +68,8 @@ export default function App() {
               <a className={active ? "nav active" : "nav"} href="#overview" key={label}>
                 <Icon size={17} />{label}
               </a>
-            )}
-          ))}
+            )
+          )}
         </nav>
         <div className="sidebottom"><span className="live-dot" /> Foundation services initialized<hr /><div className="user"><b>SE</b><div>Workspace member<small>Authentication pending</small></div></div></div>
       </aside>
