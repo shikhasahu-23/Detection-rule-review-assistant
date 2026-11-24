@@ -1,10 +1,30 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.api.intelligence import router as intelligence_router
 from app.core.config import get_settings
+from app.db.base import Base
+from app.db.session import engine
+from app.models import audit, identity, intelligence  # noqa: F401
 
 settings = get_settings()
-app = FastAPI(title=settings.app_name, version="0.1.0", description="Detection engineering API")
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Development bootstrap only; production uses reviewed Alembic migrations.
+    Base.metadata.create_all(bind=engine)
+    yield
+
+
+app = FastAPI(
+    title=settings.app_name,
+    version="0.1.0",
+    description="Threat intelligence and detection engineering API",
+    lifespan=lifespan,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.allowed_origins,
@@ -12,6 +32,7 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],
 )
+app.include_router(intelligence_router)
 
 
 @app.get("/health", tags=["operations"])
@@ -21,5 +42,4 @@ async def health() -> dict[str, str]:
 
 @app.get("/ready", tags=["operations"])
 async def ready() -> dict[str, str]:
-    # Database and queue dependency checks will be added in the next phase.
     return {"status": "ready"}
