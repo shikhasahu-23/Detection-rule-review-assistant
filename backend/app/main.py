@@ -11,14 +11,7 @@ from app.api.rule_candidates import router as rule_candidates_router
 from app.core.config import get_settings
 from app.db.base import Base
 from app.db.session import engine
-import app.models.attack  # noqa: F401
-import app.models.audit  # noqa: F401
-import app.models.detection  # noqa: F401
-import app.models.identity  # noqa: F401
-import app.models.intelligence  # noqa: F401
-import app.models.pipeline  # noqa: F401
-import app.models.rule  # noqa: F401
-import app.models.threat_graph  # noqa: F401
+from app.models import attack, audit, detection, identity, intelligence, pipeline, rule, threat_graph  # noqa: F401
 
 settings = get_settings()
 
