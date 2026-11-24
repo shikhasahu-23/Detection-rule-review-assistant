@@ -24,9 +24,8 @@ def _balanced_delimiters(query: str) -> bool:
             quote = char
         elif char in "([{":
             stack.append(char)
-        elif char in ")]}":
-            if not stack or stack.pop() != pairs[char]:
-                return False
+        elif char in ")]}" and (not stack or stack.pop() != pairs[char]):
+            return False
     return not stack and quote is None
 
 
