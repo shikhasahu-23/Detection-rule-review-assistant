@@ -40,6 +40,7 @@ function App() {
   const [intentTitle, setIntentTitle] = useState("");
   const [intentDescription, setIntentDescription] = useState("");
   const [intentBehavior, setIntentBehavior] = useState("");
+  const [attackTechniqueIds, setAttackTechniqueIds] = useState("");
   const [targetPlatforms, setTargetPlatforms] = useState<string[]>(["splunk", "sentinel"]);
   const [creatingIntent, setCreatingIntent] = useState(false);
   const [generating, setGenerating] = useState(false);
@@ -157,13 +158,14 @@ function App() {
         body: JSON.stringify({
           title: intentTitle, description: intentDescription, behavior: intentBehavior,
           severity: "medium", target_platforms: targetPlatforms,
+          attack_techniques: attackTechniqueIds.split(",").map(value=>value.trim()).filter(Boolean),
           required_telemetry: [{ source: "endpoint", description: "Process creation and network telemetry", required_fields: ["process_name", "command_line", "destination_ip"] }],
           test_scenarios: [],
         }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.detail || "Unable to create detection intent.");
-      setIntentTitle(""); setIntentDescription(""); setIntentBehavior("");
+      setIntentTitle(""); setIntentDescription(""); setIntentBehavior(""); setAttackTechniqueIds("");
       setSelectedIntentId(body.id);
       setNotice("Detection intent saved. You can now generate platform-specific candidates.");
       await loadDetectionData();
@@ -262,6 +264,7 @@ function App() {
               <label>DETECTION NAME</label><input value={intentTitle} onChange={e=>setIntentTitle(e.target.value)} placeholder="e.g. Suspicious PowerShell download"/>
               <label>DESCRIPTION</label><textarea value={intentDescription} onChange={e=>setIntentDescription(e.target.value)} placeholder="What activity should this detection identify?"/>
               <label>BEHAVIOR DETAILS</label><textarea value={intentBehavior} onChange={e=>setIntentBehavior(e.target.value)} placeholder="Describe the attacker behavior, sequence and expected signals."/>
+              <label>MITRE ATT&CK TECHNIQUE IDS (OPTIONAL)</label><input value={attackTechniqueIds} onChange={e=>setAttackTechniqueIds(e.target.value)} placeholder="T1059.001, T1105"/>
               <label>TARGET PLATFORMS</label><div className="platform-options">{["splunk","sentinel","chronicle","crowdstrike"].map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform}</label>)}</div>
               <button className="primary-action" disabled={creatingIntent||intentTitle.length<3||intentDescription.length<10||intentBehavior.length<10||targetPlatforms.length===0} onClick={createIntent}>{creatingIntent?"Saving intent…":"Save detection intent"}</button>
             </div>
