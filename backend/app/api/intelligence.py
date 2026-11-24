@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -27,7 +28,7 @@ class IndicatorOut(BaseModel):
 
 
 @router.get("/summary")
-def intelligence_summary(db: Session = Depends(get_db)) -> dict:
+def intelligence_summary(db: Annotated[Session, Depends(get_db)]) -> dict:
     return {
         "indicators_total": db.scalar(select(func.count()).select_from(Indicator)) or 0,
         "active_indicators": db.scalar(select(func.count()).select_from(Indicator).where(Indicator.status == "active")) or 0,
