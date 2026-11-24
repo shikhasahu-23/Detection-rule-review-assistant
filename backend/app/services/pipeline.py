@@ -138,6 +138,12 @@ def run_intelligence_pipeline(
                     continue
                 try:
                     draft = active_provider.generate(_intent_payload(intent), platform)
+                except Exception as exc:
+                    generation_errors.append(
+                        f"{intent.id}/{platform.value}: {type(exc).__name__}: {str(exc)[:300]}"
+                    )
+                    continue
+                try:
                     version = db.scalar(select(func.max(RuleCandidate.version)).where(
                         RuleCandidate.intent_id == intent.id,
                         RuleCandidate.platform == platform.value,
@@ -154,12 +160,11 @@ def run_intelligence_pipeline(
                         validation_report=report,
                         generator="pipeline",
                     ))
-                    db.flush()
+                    db.commit()
                     created += 1
-                except GenerationUnavailable as exc:
-                    generation_errors.append(f"{intent.id}/{platform.value}: {str(exc)[:300]}")
                 except Exception as exc:
                     db.rollback()
+                    run = db.get(PipelineRun, run.id)
                     generation_errors.append(
                         f"{intent.id}/{platform.value}: {type(exc).__name__}: {str(exc)[:300]}"
                     )
