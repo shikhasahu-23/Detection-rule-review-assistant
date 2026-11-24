@@ -40,7 +40,7 @@ def _structured_references(value: object) -> tuple[set[str], set[str]]:
             if isinstance(nested, str):
                 if "technique" in normalized_key or normalized_key in {"attack_id", "attack_ids", "mitre_id", "external_id"}:
                     attack_ids.update(item.upper() for item in ATTACK_ID_RE.findall(nested))
-                if normalized_key in {"cve", "cve_id", "cve_ids", "id", "reference", "references"}:
+                if normalized_key in {"cve", "cve_id", "cveid", "cve_ids", "id", "reference", "references"}:
                     cves.update(item.upper() for item in CVE_RE.findall(nested))
             else:
                 nested_attack, nested_cves = _structured_references(nested)
@@ -76,7 +76,6 @@ def enrich_indicator(db: Session, indicator_id: UUID) -> dict | None:
         .order_by(desc(SourceEvidence.observed_at))
     ).all()
     attack_ids, cves = _evidence_context(evidence)
-    text_values = [indicator.value, indicator.description or "", *(indicator.tags or [])]
     for value in (indicator.value, *(indicator.tags or [])):
         attack_ids.update(item.upper() for item in ATTACK_ID_RE.findall(value))
         cves.update(item.upper() for item in CVE_RE.findall(value))
