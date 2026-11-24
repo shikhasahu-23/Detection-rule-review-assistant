@@ -1,6 +1,8 @@
-# Detection Rule Review Assistant
+# ThreatWeave
 
 A team-oriented, threat-intelligence-driven detection engineering platform.
+
+ThreatWeave brings the threat intelligence and detection engineering lifecycle together: intelligence ingestion, enrichment and correlation, AI-assisted detection generation, deterministic validation, human review, versioned rule management, and controlled export.
 
 ## Product decisions
 - Hybrid AI generation with deterministic validation.
@@ -11,13 +13,6 @@ A team-oriented, threat-intelligence-driven detection engineering platform.
 - Team access with role-based permissions and audit history.
 - Targets: Splunk SPL, Chronicle YARA-L 2.0, Sentinel KQL, and CrowdStrike Next-Gen SIEM query language.
 - Only approved rule versions may be exported/deployed.
-
-## Phase 0 foundation
-- React + TypeScript + Vite dashboard scaffold.
-- Python 3.12 + FastAPI API scaffold.
-- PostgreSQL and Redis services in Docker Compose.
-- Celery dependency and configuration foundation for later background jobs.
-- Environment template, `.gitignore`, API health/readiness endpoints, and starter tests.
 
 ## Run locally
 
@@ -32,12 +27,11 @@ A team-oriented, threat-intelligence-driven detection engineering platform.
 4. Open the frontend at `http://localhost:5173` and API docs at `http://localhost:8000/docs`.
 5. Check API health at `http://localhost:8000/health` and readiness at `http://localhost:8000/ready`.
 
-Do not commit `.env` or real API credentials. LLM keys are intentionally not required for the Phase 0 dashboard; configure them only when the generation service is implemented and the provider's data handling is approved.
+Do not commit `.env` or real API credentials. LLM keys are configured only when the generation service is implemented and the provider's data handling is approved.
 
 ## Documentation
 - [Architecture](docs/ARCHITECTURE.md)
 - [Implementation plan](docs/IMPLEMENTATION_PLAN.md)
 - [Security and governance](docs/SECURITY_AND_GOVERNANCE.md)
 
-## Current status
-Phase 0 scaffolding is on the `feature/phase-0-foundation` branch. This is a foundation build, not a production-ready application. Authentication, database migrations/models, feed connectors, LLM calls, platform rule adapters, and deployment integrations remain future work.
+The product scope and implementation roadmap remain unchanged; ThreatWeave is the product name for the complete platform, not a single detection-review feature.
