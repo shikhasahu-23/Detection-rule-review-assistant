@@ -1,14 +1,14 @@
+from uuid import UUID
+
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
-from uuid import UUID
 
 from app.db.base import Base
 from app.models.detection import DetectionIntent
 from app.models.intelligence import Indicator
 from app.models.pipeline import PipelineRun
 from app.models.rule import RuleCandidate
-from app.schemas.detection import TargetPlatform
 from app.schemas.generation import GeneratedRule
 from app.services.pipeline import run_intelligence_pipeline
 
