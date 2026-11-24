@@ -8,7 +8,6 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.detection import DetectionIntent
 from app.models.rule import RuleCandidate
-from app.schemas.detection import TargetPlatform
 from app.schemas.rule import RuleCandidateCreate, RuleCandidateOut
 from app.services.validation import validate_candidate
 
