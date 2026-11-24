@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "Detection Rule Review Assistant API"
+    app_name: str = "ThreatWeave API"
     app_env: str = "development"
     log_level: str = "INFO"
     database_url: str = "postgresql+psycopg://detection_app:change-me-locally@localhost:5432/detection_assistant"
