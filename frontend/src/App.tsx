@@ -9,6 +9,8 @@ const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 type Summary = { indicators_total: number; active_indicators: number; sources_total: number; latest_run: { source: string; status: string; started_at: string; records_seen: number; indicators_created: number } | null };
 type Indicator = { id: string; indicator_type: string; value: string; confidence: number; severity: string; status: string; description: string | null; tags: string[]; created_at: string };
 type Feed = { name: string; status: string; last_run: string; records_seen: number; indicators_created: number };
+type DetectionIntent = { id: string; title: string; description: string; behavior: string; severity: string; target_platforms: string[]; status: string };
+type RuleCandidate = { id: string; name: string; platform: string; query: string; version: number; status: string; validation_status: string; validation_report: { errors: {code:string;message:string}[]; warnings: {code:string;message:string}[]; is_deployable: boolean }; generator: string };
 
 const nav = [
   { label: "Overview", icon: Layers3 },
@@ -29,6 +31,15 @@ function App() {
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [intents, setIntents] = useState<DetectionIntent[]>([]);
+  const [candidates, setCandidates] = useState<RuleCandidate[]>([]);
+  const [selectedIntentId, setSelectedIntentId] = useState("");
+  const [intentTitle, setIntentTitle] = useState("");
+  const [intentDescription, setIntentDescription] = useState("");
+  const [intentBehavior, setIntentBehavior] = useState("");
+  const [targetPlatforms, setTargetPlatforms] = useState<string[]>(["splunk", "sentinel"]);
+  const [creatingIntent, setCreatingIntent] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -65,6 +76,68 @@ function App() {
     } finally {
       setSyncing(false);
     }
+  };
+
+  const loadDetectionData = useCallback(async () => {
+    try {
+      const response = await fetch(`${API}/api/v1/detection-intents?limit=100`);
+      if (!response.ok) throw new Error("Unable to load detection intents.");
+      const items: DetectionIntent[] = await response.json();
+      setIntents(items);
+      const currentId = selectedIntentId || items[0]?.id || "";
+      if (!selectedIntentId && currentId) setSelectedIntentId(currentId);
+      if (currentId) {
+        const rulesResponse = await fetch(`${API}/api/v1/detection-intents/${currentId}/candidates`);
+        if (!rulesResponse.ok) throw new Error("Unable to load rule candidates.");
+        setCandidates(await rulesResponse.json());
+      } else setCandidates([]);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to load detection engineering data.");
+    }
+  }, [selectedIntentId]);
+
+  useEffect(() => {
+    if (["Rule generator", "Validation", "Review queue", "Rule library"].includes(page)) void loadDetectionData();
+  }, [page, loadDetectionData]);
+
+  const createIntent = async () => {
+    setCreatingIntent(true); setError(""); setNotice("");
+    try {
+      const response = await fetch(`${API}/api/v1/detection-intents`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: intentTitle, description: intentDescription, behavior: intentBehavior,
+          severity: "medium", target_platforms: targetPlatforms,
+          required_telemetry: [{ source: "endpoint", description: "Process creation and network telemetry", required_fields: ["process_name", "command_line", "destination_ip"] }],
+          test_scenarios: [],
+        }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || "Unable to create detection intent.");
+      setIntentTitle(""); setIntentDescription(""); setIntentBehavior("");
+      setSelectedIntentId(body.id);
+      setNotice("Detection intent saved. You can now generate platform-specific candidates.");
+      await loadDetectionData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to create detection intent.");
+    } finally { setCreatingIntent(false); }
+  };
+
+  const generateRules = async () => {
+    if (!selectedIntentId) return;
+    setGenerating(true); setError(""); setNotice("");
+    try {
+      const response = await fetch(`${API}/api/v1/detection-intents/${selectedIntentId}/generate`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_platforms: targetPlatforms }),
+      });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || "Candidate generation failed.");
+      setNotice(`${body.length} candidate(s) generated. Review the query and validation warnings before using them.`);
+      await loadDetectionData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Candidate generation failed.");
+    } finally { setGenerating(false); }
   };
 
   const filtered = indicators.filter((item) =>
@@ -107,6 +180,41 @@ function App() {
         </section>
         <section className="panel feed-panel"><div className="panelhead"><div><b>Feed activity</b><p>Recent ingestion status</p></div></div>
           {feeds.length ? feeds.map(feed => <div className="feed-row" key={feed.name}><div><b>{feed.name}</b><small>{feed.last_run ? new Date(feed.last_run).toLocaleString() : "No run time"}</small></div><span className={feed.status === "succeeded" ? "feed-ok" : "feed-fail"}>{feed.status}</span><small>{feed.records_seen.toLocaleString()} records · {feed.indicators_created.toLocaleString()} new</small></div>) : <p className="muted">No feed runs recorded. Start with the CISA KEV sync.</p>}
+        </section>
+      </> : page === "Rule generator" ? <>
+        <section className="banner"><Sparkles/><div><b>AI-assisted detection generation</b><p>Describe behavior once, then create platform-specific draft candidates. Generated queries require analyst review.</p></div><span>HUMAN REVIEW</span></section>
+        <section className="columns">
+          <article className="panel"><div className="panelhead"><div><b>Create detection intent</b><p>Define behavior and telemetry before generating queries.</p></div></div>
+            <div className="intent-form">
+              <label>DETECTION NAME</label><input value={intentTitle} onChange={e=>setIntentTitle(e.target.value)} placeholder="e.g. Suspicious PowerShell download"/>
+              <label>DESCRIPTION</label><textarea value={intentDescription} onChange={e=>setIntentDescription(e.target.value)} placeholder="What activity should this detection identify?"/>
+              <label>BEHAVIOR DETAILS</label><textarea value={intentBehavior} onChange={e=>setIntentBehavior(e.target.value)} placeholder="Describe the attacker behavior, sequence and expected signals."/>
+              <label>TARGET PLATFORMS</label><div className="platform-options">{["splunk","sentinel","chronicle","crowdstrike"].map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform}</label>)}</div>
+              <button className="primary-action" disabled={creatingIntent||intentTitle.length<3||intentDescription.length<10||intentBehavior.length<10||targetPlatforms.length===0} onClick={createIntent}>{creatingIntent?"Saving intent…":"Save detection intent"}</button>
+            </div>
+          </article>
+          <article className="panel"><div className="panelhead"><div><b>Generate candidates</b><p>Use the configured OpenAI provider to draft queries.</p></div></div>
+            <div className="intent-form">
+              <label>SAVED DETECTION INTENT</label><select value={selectedIntentId} onChange={e=>setSelectedIntentId(e.target.value)}><option value="">Select a detection intent</option>{intents.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select>
+              <label>PLATFORMS TO GENERATE</label><div className="platform-options">{["splunk","sentinel","chronicle","crowdstrike"].map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform}</label>)}</div>
+              <button className="primary-action" disabled={generating||!selectedIntentId||targetPlatforms.length===0} onClick={generateRules}><Sparkles size={15}/>{generating?"Generating…":"Generate detection candidates"}</button>
+              <p className="muted">Requires OPENAI_API_KEY on the backend. Generation never approves or deploys a rule.</p>
+            </div>
+          </article>
+        </section>
+        <section className="panel intel-panel"><div className="panelhead"><div><b>Generated rule candidates</b><p>Versioned drafts with deterministic static-check results</p></div><span>{candidates.length} candidates</span></div>
+          {candidates.length ? candidates.map(candidate=><article className="candidate-card" key={candidate.id}>
+            <div className="candidate-title"><div><b>{candidate.name}</b><small>{candidate.platform.toUpperCase()} · VERSION {candidate.version} · {candidate.generator}</small></div><span className={candidate.validation_status==="failed"?"feed-fail":"feed-ok"}>{candidate.validation_status.replaceAll("_"," ")}</span></div>
+            <pre>{candidate.query}</pre>
+            {[...candidate.validation_report.errors,...candidate.validation_report.warnings].map((item,index)=><p className="validation-note" key={item.code+index}><AlertTriangle size={13}/><b>{item.code}</b> — {item.message}</p>)}
+            <small className="muted">Status: {candidate.status} · Deployable: No — analyst approval and vendor validation remain required.</small>
+          </article>) : <p className="no-data">No candidates yet. Save a detection intent and generate the first draft.</p>}
+        </section>
+      </> : page === "Validation" || page === "Review queue" || page === "Rule library" ? <>
+        <section className="banner"><ShieldCheck/><div><b>{page}</b><p>Candidate queries and static validation results. Approval and production export are not enabled yet.</p></div><span>READ ONLY</span></section>
+        <section className="panel intel-panel"><div className="panelhead"><div><b>Candidate inventory</b><p>Select an intent to inspect its candidates.</p></div><span>{candidates.length} candidates</span></div>
+          <select className="intent-select" value={selectedIntentId} onChange={e=>setSelectedIntentId(e.target.value)}><option value="">Select intent</option>{intents.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select>
+          {candidates.map(candidate=><article className="candidate-card" key={candidate.id}><div className="candidate-title"><div><b>{candidate.name}</b><small>{candidate.platform.toUpperCase()} · V{candidate.version}</small></div><span>{candidate.validation_status}</span></div><pre>{candidate.query}</pre><small className="muted">Not approved · Not deployable</small></article>)}
         </section>
       </> : <>
         <section className="banner"><Activity/><div><b>Your workspace is ready for detection engineering</b><p>Start by ingesting trusted intelligence. Rule generation and approval workflows will build on this foundation.</p></div><span>PHASE 2</span></section>
