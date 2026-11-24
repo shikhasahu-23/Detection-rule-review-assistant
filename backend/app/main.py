@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.detection_intents import router as detection_intents_router
+from app.api.effectiveness import router as effectiveness_router
 from app.api.generation import router as generation_router
 from app.api.intelligence import router as intelligence_router
 from app.api.rule_candidates import library_router
@@ -53,6 +54,7 @@ app.include_router(rule_candidates_router)
 app.include_router(library_router)
 app.include_router(generation_router)
 app.include_router(testing_router)
+app.include_router(effectiveness_router)
 
 
 @app.get("/health", tags=["operations"])

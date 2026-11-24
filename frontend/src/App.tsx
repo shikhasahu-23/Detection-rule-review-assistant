@@ -26,6 +26,7 @@ const nav = [
   { label: "Threat graph", icon: Network },
   { label: "ATT&CK catalog", icon: ShieldCheck },
   { label: "Rule generator", icon: Sparkles },
+  { label: "Effectiveness", icon: Activity },
   { label: "Validation", icon: ShieldCheck },
   { label: "Review queue", icon: FileSearch },
   { label: "Rule library", icon: Database },
@@ -72,6 +73,8 @@ function App() {
   const [entitySearch, setEntitySearch] = useState("");
   const [pipelineRuns, setPipelineRuns] = useState<PipelineRun[]>([]);
   const [pipelineQueued, setPipelineQueued] = useState(false);
+  const [effectiveness, setEffectiveness] = useState<any>(null);
+  const [loadingEffectiveness, setLoadingEffectiveness] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -268,6 +271,23 @@ function App() {
     if (page === "Correlation") void loadOpportunities();
   }, [page, loadOpportunities]);
 
+  const loadEffectiveness = useCallback(async () => {
+    setLoadingEffectiveness(true);
+    try {
+      const response = await fetch(`${API}/api/v1/detection-effectiveness`);
+      if (!response.ok) throw new Error("Unable to load detection effectiveness metrics.");
+      setEffectiveness(await response.json());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to load detection effectiveness metrics.");
+    } finally {
+      setLoadingEffectiveness(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (page === "Effectiveness") void loadEffectiveness();
+  }, [page, loadEffectiveness]);
+
   const loadPipelineRuns = useCallback(async () => {
     try {
       const response = await fetch(`${API}/api/v1/intelligence/pipeline/runs?limit=10`);
@@ -370,7 +390,7 @@ function App() {
     <main>
       <header><span>Workspace　›　<b>{page}</b></span><small><span className="live-dot"/> DEVELOPMENT</small></header>
       <section className="heading">
-        <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>{page === "Threat intelligence" ? "Threat Intelligence Center" : page === "ATT&CK catalog" ? "MITRE ATT&CK Catalog" : page === "Rule generator" ? "Detection Rule Generator" : page === "Correlation" ? "Intelligence Correlation" : page === "Threat graph" ? "Threat Entity Graph" : "Good morning, team 👋"}</h1><p>Monitor threat intelligence, preserve source evidence, and prepare trusted inputs for detection engineering.</p></div>
+        <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>{page === "Threat intelligence" ? "Threat Intelligence Center" : page === "ATT&CK catalog" ? "MITRE ATT&CK Catalog" : page === "Rule generator" ? "Detection Rule Generator" : page === "Correlation" ? "Intelligence Correlation" : page === "Threat graph" ? "Threat Entity Graph" : page === "Effectiveness" ? "Detection Quality & Coverage" : "Good morning, team 👋"}</h1><p>Monitor threat intelligence, preserve source evidence, and prepare trusted inputs for detection engineering.</p></div>
         {page === "Threat intelligence" && <div className="feed-actions"><button onClick={startPipeline} disabled={pipelineQueued}><Network size={16} className={pipelineQueued ? "spin" : ""}/>{pipelineQueued ? "Queueing…" : "Run full pipeline"}</button><button onClick={syncCisa} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncing ? "spin" : ""}/>{syncing ? "Syncing CISA…" : "Sync CISA KEV"}</button><button onClick={syncNvd} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncingNvd ? "spin" : ""}/>{syncingNvd ? "Syncing NVD…" : "Sync NVD CVEs"}</button><label className="upload-button">{uploadingCsv?"Importing CSV…":"Import CSV"}<input type="file" accept=".csv,text/csv" disabled={uploadingCsv} onChange={e=>{const input=e.currentTarget;const file=input.files?.[0];input.value="";if(file)void importCsv(file);}}/></label></div>}
         {page === "ATT&CK catalog" && <button onClick={syncAttack} disabled={syncingAttack}><RefreshCw size={16} className={syncingAttack ? "spin" : ""}/>{syncingAttack ? "Syncing catalog…" : "Sync ATT&CK"}</button>}
       </section>
@@ -473,6 +493,27 @@ function App() {
           {candidates.length===0&&<p className="no-data">No rules match the selected filters.</p>}
           <div className="library-pagination"><button disabled={libraryOffset===0} onClick={()=>setLibraryOffset(x=>Math.max(0,x-100))}>Previous</button><span>Showing {libraryOffset+1}–{libraryOffset+candidates.length}</span><button disabled={candidates.length<100} onClick={()=>setLibraryOffset(x=>x+100)}>Next</button></div>
         </section>
+      </> : page === "Effectiveness" ? <>
+        <section className="banner"><Activity/><div><b>Detection quality and ATT&CK coverage</b><p>Transparent workflow-readiness indicators based on explicit mappings, validation, telemetry hints and offline test runs.</p></div><span>PRIORITIZATION</span></section>
+        <div className="effectiveness-toolbar"><small>Updated from current database records</small><button onClick={()=>void loadEffectiveness()} disabled={loadingEffectiveness}><RefreshCw size={14} className={loadingEffectiveness?"spin":""}/> Refresh metrics</button></div>
+        {effectiveness ? <>
+          <section className="stats">
+            {[
+              {label:"ATT&CK techniques covered",value:`${effectiveness.summary.covered_techniques}/${effectiveness.summary.active_techniques}`,note:`${effectiveness.summary.coverage_percent}% explicit coverage`},
+              {label:"Coverage gaps",value:effectiveness.summary.coverage_gaps,note:"Active techniques without a mapped intent"},
+              {label:"Detection intents",value:effectiveness.summary.detection_intents,note:`${effectiveness.summary.intents_with_candidates} with candidates`},
+              {label:"Average readiness",value:`${effectiveness.summary.average_readiness}%`,note:"Equal-weight workflow readiness score"},
+            ].map(item=><article key={item.label}><div>{item.label}<Activity size={17}/></div><strong>{item.value}</strong><small>{item.note}</small></article>)}
+          </section>
+          <section className="panel intel-panel"><div className="panelhead"><div><b>ATT&CK tactic coverage</b><p>Exact technique ID mappings from detection intents, not inferred query behavior.</p></div><span>{effectiveness.tactics.length} tactics</span></div>
+            {effectiveness.tactics.length?effectiveness.tactics.map((t:any)=><div className="coverage-row" key={t.tactic}><div><b>{t.tactic.replaceAll("_"," ")}</b><small>{t.covered_count}/{t.technique_count} techniques</small></div><div className="coverage-track"><span style={{width:`${t.coverage_percent}%`}}/></div><strong>{t.coverage_percent}%</strong></div>):<p className="no-data">No ATT&CK techniques loaded yet. Sync the ATT&CK catalog to populate coverage.</p>}
+          </section>
+          <section className="panel intel-panel"><div className="panelhead"><div><b>Detection readiness</b><p>Per-intent score with its underlying dimensions.</p></div><span>{effectiveness.detections.length} intents</span></div>
+            {effectiveness.detections.length?effectiveness.detections.map((d:any)=><article className="readiness-card" key={d.intent_id}><div className="readiness-head"><div><b>{d.title}</b><small>{d.severity.toUpperCase()} · {d.technique_ids.length?d.technique_ids.join(", "):"No explicit ATT&CK mapping"}</small></div><strong>{d.readiness_score}%</strong></div><div className="coverage-track"><span style={{width:`${d.readiness_score}%`}}/></div><div className="readiness-dimensions">{d.dimensions.map((x:any)=><span key={x.name}>{x.name}: <b>{x.status==="not_assessed"||x.status==="not_tested"?"Not assessed":x.score+"%"}</b></span>)}</div><div className="platform-readiness">{d.platforms.map((p:any)=><span key={p.candidate_id}>{p.platform} · v{p.version} · validation {p.validation_status} · tests {p.test_status}</span>)}</div></article>):<p className="no-data">Create detection intents and candidates to calculate readiness.</p>}
+          </section>
+          <section className="panel intel-panel"><div className="panelhead"><div><b>Uncovered ATT&CK techniques</b><p>Prioritization candidates; not claims that every technique should have a detection.</p></div><span>{effectiveness.summary.coverage_gaps} gaps</span></div><div className="table-wrap"><table><thead><tr><th>TECHNIQUE</th><th>TACTICS</th><th>PLATFORMS</th></tr></thead><tbody>{effectiveness.techniques.filter((t:any)=>!t.covered).slice(0,100).map((t:any)=><tr key={t.technique_id}><td><b>{t.technique_id} · {t.name}</b></td><td>{t.tactics.join(", ")||"—"}</td><td>{t.platforms.join(", ")||"—"}</td></tr>)}</tbody></table></div></section>
+          <section className="panel intel-panel"><div className="panelhead"><div><b>Scoring methodology</b><p>Read before interpreting the dashboard.</p></div></div><p className="methodology">{effectiveness.methodology.readiness_score}</p><p className="methodology">{effectiveness.methodology.attck_coverage}</p><ul className="limitations">{effectiveness.methodology.limitations.map((item:string)=><li key={item}>{item}</li>)}</ul></section>
+        </>:<div className="panel no-data">{loadingEffectiveness?"Loading effectiveness metrics…":"No metrics available."}</div>}
       </> : page === "Validation" || page === "Review queue" ? <>
         <section className="banner"><ShieldCheck/><div><b>{page}</b><p>Candidate queries and static validation results. Approval and production export are not enabled yet.</p></div><span>READ ONLY</span></section>
         <section className="panel intel-panel"><div className="panelhead"><div><b>Candidate inventory</b><p>Select an intent to inspect its candidates.</p></div><span>{candidates.length} candidates</span></div>
