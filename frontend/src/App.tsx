@@ -29,6 +29,7 @@ function App() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
+  const [syncingNvd, setSyncingNvd] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [intents, setIntents] = useState<DetectionIntent[]>([]);
@@ -141,6 +142,19 @@ function App() {
   };
 
   const selectedIntent = intents.find((item) => item.id === selectedIntentId);
+  const syncNvd = async () => {
+    setSyncingNvd(true); setError(""); setNotice("");
+    try {
+      const response = await fetch(`${API}/api/v1/intelligence/feeds/nvd/sync`, { method: "POST" });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || "NVD sync failed.");
+      setNotice(`NVD sync complete — ${body.records_seen.toLocaleString()} records checked, ${body.indicators_created.toLocaleString()} new indicators added.${body.complete_window ? "" : " The result window was larger than one page; another sync is needed to complete it."}`);
+      await loadData();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "NVD sync failed.");
+    } finally { setSyncingNvd(false); }
+  };
+
   const filtered = indicators.filter((item) =>
     item.value.toLowerCase().includes(query.toLowerCase()) ||
     (item.description || "").toLowerCase().includes(query.toLowerCase())
@@ -164,12 +178,12 @@ function App() {
       <header><span>Workspace　›　<b>{page}</b></span><small><span className="live-dot"/> DEVELOPMENT</small></header>
       <section className="heading">
         <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>{page === "Threat intelligence" ? "Threat Intelligence Center" : "Good morning, team 👋"}</h1><p>Monitor threat intelligence, preserve source evidence, and prepare trusted inputs for detection engineering.</p></div>
-        {page === "Threat intelligence" && <button onClick={syncCisa} disabled={syncing}><RefreshCw size={16} className={syncing ? "spin" : ""}/>{syncing ? "Syncing CISA KEV…" : "Sync CISA KEV"}</button>}
+        {page === "Threat intelligence" && <div className="feed-actions"><button onClick={syncCisa} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncing ? "spin" : ""}/>{syncing ? "Syncing CISA…" : "Sync CISA KEV"}</button><button onClick={syncNvd} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncingNvd ? "spin" : ""}/>{syncingNvd ? "Syncing NVD…" : "Sync NVD CVEs"}</button></div>}
       </section>
       {error && <div className="notice error"><AlertTriangle size={16}/>{error}<button onClick={loadData}>Retry</button></div>}
       {notice && <div className="notice success"><CheckCircle2 size={16}/>{notice}</div>}
       {page === "Threat intelligence" ? <>
-        <section className="banner"><Radar/><div><b>CISA Known Exploited Vulnerabilities</b><p>Official CISA KEV catalogue · fixed trusted HTTPS source · idempotent ingestion with source provenance.</p></div><span>{feeds.find(f => f.name === "CISA KEV")?.status?.toUpperCase() || "NOT SYNCED"}</span></section>
+        <section className="banner"><Radar/><div><b>CISA Known Exploited Vulnerabilities</b><p>CISA KEV and NVD CVE catalogues · fixed trusted HTTPS sources · idempotent ingestion with source provenance.</p></div><span>{feeds.find(f => f.name === "CISA KEV")?.status?.toUpperCase() || "NOT SYNCED"}</span></section>
         <section className="stats">{stats.map(({ label, value, note, icon: Icon }) => <article key={label}><div>{label}<Icon size={18}/></div><strong>{loading ? "…" : value.toLocaleString?.() ?? value}</strong><small>{note}</small></article>)}</section>
         <section className="panel intel-panel">
           <div className="panelhead"><div><b>Indicator inventory</b><p>Normalized indicators with source-backed evidence</p></div><span>{filtered.length} records</span></div>

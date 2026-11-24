@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.intelligence import FeedRun, Indicator, SourceEvidence
 from app.services.cisa_kev import sync_cisa_kev
+from app.services.nvd import sync_nvd_cves
 
 router = APIRouter(prefix="/api/v1/intelligence", tags=["threat intelligence"])
 
@@ -85,6 +86,16 @@ def sync_cisa_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail="CISA feed ingestion failed") from exc
+
+
+@router.post("/feeds/nvd/sync")
+def sync_nvd_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
+    try:
+        return sync_nvd_cves(db)
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="NVD feed ingestion failed") from exc
 
 
 def _latest_run(db: Session) -> dict | None:
