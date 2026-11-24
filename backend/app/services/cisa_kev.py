@@ -6,7 +6,7 @@ untrusted data and is stored as evidence, never executed or interpreted as code.
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
@@ -29,7 +29,7 @@ def fetch_feed(timeout: int = 25) -> dict:
     except (HTTPError, URLError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError) as exc:
         raise ValueError(f"Unable to retrieve or parse CISA KEV feed: {type(exc).__name__}") from exc
     if not isinstance(payload, dict) or not isinstance(payload.get("vulnerabilities"), list):
-        raise ValueError("CISA KEV response did not match the expected schema")
+        raise TypeError("CISA KEV response did not match the expected schema")
     return payload
 
 
@@ -41,7 +41,7 @@ def sync_cisa_kev(db: Session, payload: dict | None = None) -> dict:
         data = payload if payload is not None else fetch_feed()
         records = data.get("vulnerabilities")
         if not isinstance(records, list):
-            raise ValueError("Feed has no vulnerabilities array")
+            raise TypeError("Feed has no vulnerabilities array")
         created_indicators = created_evidence = 0
         for item in records:
             if not isinstance(item, dict):
@@ -80,7 +80,7 @@ def sync_cisa_kev(db: Session, payload: dict | None = None) -> dict:
         run.records_seen = len(records)
         run.indicators_created = created_indicators
         run.evidence_created = created_evidence
-        run.completed_at = datetime.now(timezone.utc)
+        run.completed_at = datetime.now(UTC)
         db.commit()
         return {
             "run_id": str(run.id), "source": SOURCE_NAME, "status": run.status,
