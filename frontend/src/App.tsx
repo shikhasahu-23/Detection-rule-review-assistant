@@ -60,9 +60,15 @@ export default function App() {
         <div className="workspace"><span>S</span><div><b>Security Engineering</b><small>Team workspace</small></div><ChevronRight size={15} /></div>
         <nav aria-label="Workspace navigation">
           {nav.map(({ label, icon: Icon, active, locked }) => (
-            <a className={active ? "nav active" : locked ? "nav nav-locked" : "nav"} href={active ? "#overview" : "#"} aria-disabled={locked} key={label}>
-              <Icon size={17} />{label}{locked && <LockKeyhole className="nav-lock" size={13} />}
-            </a>
+            {locked ? (
+              <span className="nav nav-locked" aria-disabled="true" key={label}>
+                <Icon size={17} />{label}<LockKeyhole className="nav-lock" size={13} />
+              </span>
+            ) : (
+              <a className={active ? "nav active" : "nav"} href="#overview" key={label}>
+                <Icon size={17} />{label}
+              </a>
+            )}
           ))}
         </nav>
         <div className="sidebottom"><span className="live-dot" /> Foundation services initialized<hr /><div className="user"><b>SE</b><div>Workspace member<small>Authentication pending</small></div></div></div>
