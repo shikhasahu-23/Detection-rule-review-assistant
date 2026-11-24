@@ -9,6 +9,25 @@ from sqlalchemy.orm import Session
 
 from app.core.authorization import Principal, assert_organization_access, get_current_principal
 from app.db.session import get_db
+from app.models.intelligence import (
+    AttackTechniqueMapping,
+    IngestionRun,
+    IntelEntityLink,
+    IntelQuarantineRecord,
+    IntelRecord,
+    IntelSource,
+    ThreatEntity,
+)rom datetime import UTC, datetime
+from typing import Annotated
+from uuid import UUID
+
+from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.core.authorization import Principal, assert_organization_access, get_current_principal
+from app.db.session import get_db
 from app.models.intelligence import (\n    AttackTechniqueMapping,\n    IngestionRun,\n    IntelEntityLink,\n    IntelQuarantineRecord,\n    IntelRecord,\n    IntelSource,\n    ThreatEntity,\n)
 
 router = APIRouter(prefix="/api/v1/intelligence", tags=["intelligence"])
