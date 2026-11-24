@@ -1,0 +1,6 @@
+{
+  "platform": "sentinel",
+  "name": "Suspicious PowerShell process",
+  "query": "DeviceProcessEvents | where FileName =~ \"powershell.exe\" | where ProcessCommandLine contains \"download\"",
+  "expected_validation": "passed_with_warnings"
+}
