@@ -1,26 +1,37 @@
-# Initial free-tier prototype. This does not provision paid workers or datastores.
+# Free-tier prototype only. Free Postgres expires after 30 days; free Key Value is non-persistent.
 services:
   - type: web
     name: detectionops-api
     runtime: docker
     rootDir: backend
-    dockerfilePath: ./Dockerfile
-    dockerContext: .
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
     branch: feature/phase-0-foundation
     plan: free
     region: singapore
     autoDeployTrigger: off
     healthCheckPath: /ready
-    dockerCommand: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    dockerCommand: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"
     envVars:
       - key: APP_ENV
         value: production
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: detectionops-db
+          property: connectionString
       - key: REDIS_URL
-        sync: false
+        fromService:
+          name: detectionops-redis
+          type: keyvalue
+          property: connectionString
       - key: CORS_ORIGINS
         sync: false
+
+  - type: keyvalue
+    name: detectionops-redis
+    region: singapore
+    plan: free
+    ipAllowList: []
 
   - type: web
     runtime: static
@@ -37,3 +48,9 @@ services:
     envVars:
       - key: VITE_API_BASE_URL
         sync: false
+
+databases:
+  - name: detectionops-db
+    databaseName: detectionops
+    plan: free
+    region: singapore
