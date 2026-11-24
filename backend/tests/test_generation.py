@@ -7,7 +7,6 @@ from app.db.base import Base
 from app.db.session import get_db
 from app.main import app
 from app.models import audit, detection, identity, intelligence, rule  # noqa: F401
-from app.schemas.detection import TargetPlatform
 from app.schemas.generation import GeneratedRule
 from app.services.generation import get_generation_provider
 
