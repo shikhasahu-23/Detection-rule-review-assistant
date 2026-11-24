@@ -22,4 +22,5 @@ class RuleCandidateOut(BaseModel):
     status: str
     validation_status: str
     validation_report: dict
+    generation_metadata: dict
     generator: str
