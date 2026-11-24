@@ -1,14 +1,27 @@
 from app.models.audit import AuditEvent
 from app.models.identity import Organization, TeamMembership, User
-from app.models.intelligence import (\n    AttackTechniqueMapping,\n    IngestionRun,\n    IntelEntityLink,\n    IntelEvidence,\n    IntelQuarantineRecord,\n    IntelRecord,\n    IntelSource,\n    ThreatEntity,\n)
+from app.models.intelligence import (
+    AttackTechniqueMapping,
+    IngestionRun,
+    IntelEntityLink,
+    IntelEvidence,
+    IntelQuarantineRecord,
+    IntelRecord,
+    IntelSource,
+    ThreatEntity,
+)
 
 __all__ = [
-    "AttackTechniqueMapping",\n    "AuditEvent",
+    "AttackTechniqueMapping",
+    "AuditEvent",
     "IngestionRun",
-    "IntelEntityLink",\n    "IntelEvidence",\n    "IntelQuarantineRecord",
+    "IntelEntityLink",
+    "IntelEvidence",
+    "IntelQuarantineRecord",
     "IntelRecord",
     "IntelSource",
     "Organization",
-    "TeamMembership",\n    "ThreatEntity",
+    "TeamMembership",
+    "ThreatEntity",
     "User",
 ]
