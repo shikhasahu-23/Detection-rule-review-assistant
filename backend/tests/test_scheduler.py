@@ -15,3 +15,12 @@ def test_daily_intelligence_schedules_are_registered():
     assert cisa["schedule"].minute == {0}
     assert nvd["schedule"].minute == {0}
     assert attack["schedule"].minute == {0}
+
+
+
+def test_daily_pipeline_runs_after_feed_sync_windows():
+    pipeline = celery_app.conf.beat_schedule["run-intelligence-pipeline-daily"]
+    assert pipeline["task"] == "app.tasks.pipeline.run_pipeline"
+    assert pipeline["schedule"].hour == {5}
+    assert pipeline["schedule"].minute == {0}
+    assert pipeline["kwargs"] == {"trigger": "scheduled", "sync_feeds": False}

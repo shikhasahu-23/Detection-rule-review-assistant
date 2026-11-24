@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.attack import AttackTechnique
 from app.models.intelligence import FeedRun, Indicator, SourceEvidence
+from app.models.pipeline import PipelineRun
 from app.models.threat_graph import ThreatEntity, ThreatEntityEvidence, ThreatRelationship
 from app.services.cisa_kev import sync_cisa_kev
 from app.services.custom_csv import sync_custom_csv
@@ -17,6 +18,7 @@ from app.services.enrichment import detection_opportunities, enrich_indicator
 from app.services.mitre_attack import sync_attack_catalog
 from app.services.nvd import sync_nvd_cves
 from app.services.threat_graph import ENTITY_TYPES, import_stix_bundle
+from app.tasks.pipeline import run_pipeline
 
 router = APIRouter(prefix="/api/v1/intelligence", tags=["threat intelligence"])
 
@@ -329,3 +331,48 @@ def threat_entity_evidence(
         "confidence": row.confidence,
         "observed_at": row.observed_at,
     } for row in rows]
+
+
+
+@router.post("/pipeline/runs", status_code=202)
+def enqueue_intelligence_pipeline() -> dict:
+    task = run_pipeline.delay(trigger="manual", sync_feeds=True)
+    return {"task_id": task.id, "status": "queued", "message": "Full feed ingestion and intelligence pipeline queued."}
+
+
+@router.get("/pipeline/runs")
+def list_pipeline_runs(
+    db: Annotated[Session, Depends(get_db)],
+    limit: int = Query(default=20, ge=1, le=100),
+) -> list[dict]:
+    rows = db.scalars(
+        select(PipelineRun).order_by(desc(PipelineRun.started_at)).limit(limit)
+    ).all()
+    return [{
+        "run_id": str(row.id), "status": row.status, "trigger": row.trigger,
+        "stage_results": row.stage_results, "indicators_enriched": row.indicators_enriched,
+        "opportunities_found": row.opportunities_found,
+        "candidates_created": row.candidates_created,
+        "candidates_skipped": row.candidates_skipped,
+        "started_at": row.started_at, "completed_at": row.completed_at,
+        "error_message": row.error_message,
+    } for row in rows]
+
+
+@router.get("/pipeline/runs/{run_id}")
+def get_pipeline_run(
+    run_id: UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    row = db.get(PipelineRun, run_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Pipeline run not found")
+    return {
+        "run_id": str(row.id), "status": row.status, "trigger": row.trigger,
+        "stage_results": row.stage_results, "indicators_enriched": row.indicators_enriched,
+        "opportunities_found": row.opportunities_found,
+        "candidates_created": row.candidates_created,
+        "candidates_skipped": row.candidates_skipped,
+        "started_at": row.started_at, "completed_at": row.completed_at,
+        "error_message": row.error_message,
+    }

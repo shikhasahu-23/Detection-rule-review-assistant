@@ -47,6 +47,7 @@ Deliver a team application that ingests threat intelligence daily, enriches and 
 - Canonical intelligence and source-evidence persistence.
 - Deduplication, provenance, confidence, timestamps, expiry and quarantine.
 - Daily Celery schedules, retries, checkpoints and ingestion history.
+- Automated 02:00–05:00 UTC intelligence-to-candidate pipeline with persisted stage history, manual trigger and bounded candidate generation.
 - Intelligence Center UI with filters, detail view and source health.
 
 **Acceptance criteria**
@@ -122,12 +123,12 @@ Deliver a team application that ingests threat intelligence daily, enriches and 
 **Deliverables**
 - Searchable Rule Library with platform, status, severity, ATT&CK, source, owner and freshness filters.
 - Dashboard: active/new intel, candidates, pending reviews, validation failures, approved rules, feed health and ATT&CK coverage.
-- Daily workflow: ingest → normalize → enrich → correlate → generate candidates → validate → create review tasks.
+- Daily workflow: ingest → normalize → enrich → correlate → generate and validate draft candidates (review-task creation is not currently in scope).
 - Approved rule export with evidence manifest and validation report.
 - Stale-intel impact analysis and daily team digest.
 
 **Acceptance criteria**
-- Daily configured jobs create review items without manual intervention.
+- Daily configured jobs enrich indicators, correlate explicit references and create validated draft candidates without manual intervention.
 - Approved rules are not overwritten; updates create new versions.
 - Stale intel identifies affected rules.
 - Export is denied for unapproved versions.

@@ -12,6 +12,7 @@ type Feed = { name: string; status: string; last_run: string; records_seen: numb
 type DetectionIntent = { id: string; title: string; description: string; behavior: string; severity: string; target_platforms: string[]; status: string };
 type RuleCandidate = { id: string; name: string; platform: string; query: string; version: number; status: string; validation_status: string; validation_report: { errors: {code:string;message:string}[]; warnings: {code:string;message:string}[]; is_deployable: boolean }; generator: string };
 type AttackTechnique = { id: string; external_id: string; name: string; description: string; platforms: string[]; tactics: string[]; is_subtechnique: boolean; revoked: boolean; deprecated: boolean; source_url: string };
+type PipelineRun = { run_id: string; status: string; trigger: string; indicators_enriched: number; opportunities_found: number; candidates_created: number; candidates_skipped: number; started_at: string; completed_at: string | null; error_message: string | null; stage_results: Record<string, {status: string; reason?: string; error?: string}> };
 type ThreatNode = { id: string; entity_type: string; external_id: string; name: string; confidence: number; source_name: string; source_reference: string; source_url: string | null; revoked: boolean; deprecated: boolean };
 type ThreatEdge = { id: string; source: string; target: string; relationship_type: string; confidence: number; assertion_status: string; source_name: string; source_reference: string; source_url: string | null };
 type ThreatGraph = { nodes: ThreatNode[]; edges: ThreatEdge[]; truncated: boolean };
@@ -65,6 +66,8 @@ function App() {
   const [stixImporting, setStixImporting] = useState(false);
   const [entityTypeFilter, setEntityTypeFilter] = useState("");
   const [entitySearch, setEntitySearch] = useState("");
+  const [pipelineRuns, setPipelineRuns] = useState<PipelineRun[]>([]);
+  const [pipelineQueued, setPipelineQueued] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -243,6 +246,35 @@ function App() {
     if (page === "Correlation") void loadOpportunities();
   }, [page, loadOpportunities]);
 
+  const loadPipelineRuns = useCallback(async () => {
+    try {
+      const response = await fetch(`${API}/api/v1/intelligence/pipeline/runs?limit=10`);
+      if (!response.ok) throw new Error("Unable to load pipeline history.");
+      setPipelineRuns(await response.json());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to load pipeline history.");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (page === "Threat intelligence") void loadPipelineRuns();
+  }, [page, loadPipelineRuns]);
+
+  const startPipeline = async () => {
+    setPipelineQueued(true); setError(""); setNotice("");
+    try {
+      const response = await fetch(`${API}/api/v1/intelligence/pipeline/runs`, { method: "POST" });
+      const body = await response.json();
+      if (!response.ok) throw new Error(body.detail || "Unable to queue intelligence pipeline.");
+      setNotice(`Full intelligence pipeline queued (task ${body.task_id}). Refresh run history to follow progress.`);
+      await loadPipelineRuns();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to queue intelligence pipeline.");
+    } finally {
+      setPipelineQueued(false);
+    }
+  };
+
   const loadThreatGraph = useCallback(async () => {
     setLoadingThreatGraph(true);
     try {
@@ -317,7 +349,7 @@ function App() {
       <header><span>Workspace　›　<b>{page}</b></span><small><span className="live-dot"/> DEVELOPMENT</small></header>
       <section className="heading">
         <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>{page === "Threat intelligence" ? "Threat Intelligence Center" : page === "ATT&CK catalog" ? "MITRE ATT&CK Catalog" : page === "Rule generator" ? "Detection Rule Generator" : page === "Correlation" ? "Intelligence Correlation" : page === "Threat graph" ? "Threat Entity Graph" : "Good morning, team 👋"}</h1><p>Monitor threat intelligence, preserve source evidence, and prepare trusted inputs for detection engineering.</p></div>
-        {page === "Threat intelligence" && <div className="feed-actions"><button onClick={syncCisa} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncing ? "spin" : ""}/>{syncing ? "Syncing CISA…" : "Sync CISA KEV"}</button><button onClick={syncNvd} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncingNvd ? "spin" : ""}/>{syncingNvd ? "Syncing NVD…" : "Sync NVD CVEs"}</button><label className="upload-button">{uploadingCsv?"Importing CSV…":"Import CSV"}<input type="file" accept=".csv,text/csv" disabled={uploadingCsv} onChange={e=>{const input=e.currentTarget;const file=input.files?.[0];input.value="";if(file)void importCsv(file);}}/></label></div>}
+        {page === "Threat intelligence" && <div className="feed-actions"><button onClick={startPipeline} disabled={pipelineQueued}><Network size={16} className={pipelineQueued ? "spin" : ""}/>{pipelineQueued ? "Queueing…" : "Run full pipeline"}</button><button onClick={syncCisa} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncing ? "spin" : ""}/>{syncing ? "Syncing CISA…" : "Sync CISA KEV"}</button><button onClick={syncNvd} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncingNvd ? "spin" : ""}/>{syncingNvd ? "Syncing NVD…" : "Sync NVD CVEs"}</button><label className="upload-button">{uploadingCsv?"Importing CSV…":"Import CSV"}<input type="file" accept=".csv,text/csv" disabled={uploadingCsv} onChange={e=>{const input=e.currentTarget;const file=input.files?.[0];input.value="";if(file)void importCsv(file);}}/></label></div>}
         {page === "ATT&CK catalog" && <button onClick={syncAttack} disabled={syncingAttack}><RefreshCw size={16} className={syncingAttack ? "spin" : ""}/>{syncingAttack ? "Syncing catalog…" : "Sync ATT&CK"}</button>}
       </section>
       {error && <div className="notice error"><AlertTriangle size={16}/>{error}<button onClick={loadData}>Retry</button></div>}
@@ -332,6 +364,9 @@ function App() {
             {filtered.map(item => <tr key={item.id}><td><b>{item.value}</b><small>{item.description || item.tags.join(" · ") || "No description supplied"}</small></td><td><span className="type-pill">{item.indicator_type.toUpperCase()}</span></td><td><span className={`severity ${item.severity}`}>{item.severity}</span></td><td>{item.confidence}%</td><td><span className="status-pill">{item.status}</span></td></tr>)}
             {!loading && filtered.length === 0 && <tr><td colSpan={5} className="no-data">{query ? "No indicators match this search." : "No indicators yet. Sync the CISA KEV feed to populate the inventory."}</td></tr>}
           </tbody></table></div>
+        </section>
+        <section className="panel feed-panel"><div className="panelhead"><div><b>Automated pipeline history</b><p>Feed ingestion, enrichment, correlation and draft candidate generation</p></div><button onClick={loadPipelineRuns}><RefreshCw size={15}/> Refresh</button></div>
+          {pipelineRuns.length ? pipelineRuns.map(run=><article className="pipeline-run" key={run.run_id}><div className="pipeline-run-head"><b>{run.status.replaceAll("_"," ")}</b><small>{new Date(run.started_at).toLocaleString()} · {run.trigger}</small></div><div className="pipeline-run-metrics"><span>{run.indicators_enriched} enriched</span><span>{run.opportunities_found} opportunities</span><span>{run.candidates_created} candidates created</span><span>{run.candidates_skipped} skipped</span></div><div className="pipeline-stages">{Object.entries(run.stage_results||{}).map(([name,stage])=><span key={name} className={stage.status==="failed"?"stage-failed":stage.status==="partial"?"stage-partial":"stage-ok"}>{name.replaceAll("_"," ")}: {stage.status}</span>)}</div>{run.error_message&&<small className="muted">{run.error_message}</small>}</article>) : <p className="muted">No pipeline runs yet. Run the full pipeline to process available intelligence and prepare draft candidates.</p>}
         </section>
         <section className="panel feed-panel"><div className="panelhead"><div><b>Feed activity</b><p>Recent ingestion status</p></div></div>
           {feeds.length ? feeds.map(feed => <div className="feed-row" key={feed.name}><div><b>{feed.name}</b><small>{feed.last_run ? new Date(feed.last_run).toLocaleString() : "No run time"}</small></div><span className={feed.status === "succeeded" ? "feed-ok" : "feed-fail"}>{feed.status}</span><small>{feed.records_seen.toLocaleString()} records · {feed.indicators_created.toLocaleString()} new</small></div>) : <p className="muted">No feed runs recorded. Start with the CISA KEV sync.</p>}
