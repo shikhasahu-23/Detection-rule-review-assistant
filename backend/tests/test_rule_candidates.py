@@ -65,3 +65,33 @@ def test_candidate_rejects_unknown_intent():
         "name": "Example rule", "platform": "splunk", "query": "search index=endpoint",
     })
     assert response.status_code == 404
+
+
+def test_rule_library_searches_and_filters_candidates():
+    intent_id = create_intent()
+    first = client.post(f"/api/v1/detection-intents/{intent_id}/candidates", json={
+        "name": "PowerShell download", "platform": "splunk",
+        "query": "search index=endpoint process_name=powershell.exe",
+    })
+    second = client.post(f"/api/v1/detection-intents/{intent_id}/candidates", json={
+        "name": "Encoded command execution", "platform": "splunk",
+        "query": "search index=endpoint command_line=*encoded*",
+    })
+    assert first.status_code == 201
+    assert second.status_code == 201
+
+    response = client.get("/api/v1/rules", params={"q": "Encoded command", "platform": "splunk"})
+    assert response.status_code == 200
+    results = response.json()
+    assert len(results) == 1
+    assert results[0]["name"] == "Encoded command execution"
+    assert results[0]["status"] == "candidate"
+
+    page = client.get("/api/v1/rules", params={"limit": 1, "offset": 1})
+    assert page.status_code == 200
+    assert len(page.json()) == 1
+
+
+def test_rule_library_rejects_invalid_pagination():
+    response = client.get("/api/v1/rules", params={"limit": 501})
+    assert response.status_code == 422

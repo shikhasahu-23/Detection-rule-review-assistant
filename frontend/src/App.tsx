@@ -48,6 +48,10 @@ function App() {
   const [attackSearch, setAttackSearch] = useState("");
   const [syncingAttack, setSyncingAttack] = useState(false);
   const [uploadingCsv, setUploadingCsv] = useState(false);
+  const [libraryQuery, setLibraryQuery] = useState("");
+  const [libraryPlatform, setLibraryPlatform] = useState("");
+  const [libraryValidation, setLibraryValidation] = useState("");
+  const [libraryOffset, setLibraryOffset] = useState(0);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -147,7 +151,7 @@ function App() {
   }, [selectedIntentId]);
 
   useEffect(() => {
-    if (["Rule generator", "Validation", "Review queue", "Rule library"].includes(page)) void loadDetectionData();
+    if (["Rule generator", "Validation", "Review queue"].includes(page)) void loadDetectionData();
   }, [page, loadDetectionData]);
 
   const createIntent = async () => {
@@ -190,6 +194,24 @@ function App() {
       setError(e instanceof Error ? e.message : "Candidate generation failed.");
     } finally { setGenerating(false); }
   };
+
+  const loadRuleLibrary = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({ limit: "100", offset: String(libraryOffset) });
+      if (libraryQuery.trim()) params.set("q", libraryQuery.trim());
+      if (libraryPlatform) params.set("platform", libraryPlatform);
+      if (libraryValidation) params.set("validation_status", libraryValidation);
+      const response = await fetch(`${API}/api/v1/rules?${params.toString()}`);
+      if (!response.ok) throw new Error("Unable to load the rule library.");
+      setCandidates(await response.json());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to load the rule library.");
+    }
+  }, [libraryQuery, libraryPlatform, libraryValidation, libraryOffset]);
+
+  useEffect(() => {
+    if (page === "Rule library") void loadRuleLibrary();
+  }, [page, loadRuleLibrary]);
 
   const selectedIntent = intents.find((item) => item.id === selectedIntentId);
   const syncNvd = async () => {
@@ -286,7 +308,21 @@ function App() {
             <small className="muted">Status: {candidate.status} · Deployable: No — analyst approval and vendor validation remain required.</small>
           </article>) : <p className="no-data">No candidates yet. Save a detection intent and generate the first draft.</p>}
         </section>
-      </> : page === "Validation" || page === "Review queue" || page === "Rule library" ? <>
+      </> : page === "Rule library" ? <>
+        <section className="banner"><Database/><div><b>Searchable detection rule library</b><p>Browse generated and manually authored candidate versions across detection intents. All entries remain non-approved and non-deployable.</p></div><span>CATALOG</span></section>
+        <section className="panel intel-panel">
+          <div className="panelhead"><div><b>Rule inventory</b><p>Search by rule name or query, then narrow by platform and validation outcome.</p></div><span>{candidates.length} results</span></div>
+          <div className="searchbar"><Search size={16}/><input value={libraryQuery} onChange={e=>{setLibraryQuery(e.target.value);setLibraryOffset(0);}} placeholder="Search rule names or query text…"/></div>
+          <div className="library-filters">
+            <select value={libraryPlatform} onChange={e=>{setLibraryPlatform(e.target.value);setLibraryOffset(0);}}><option value="">All platforms</option>{["splunk","sentinel","chronicle","crowdstrike"].map(p=><option key={p} value={p}>{p.toUpperCase()}</option>)}</select>
+            <select value={libraryValidation} onChange={e=>{setLibraryValidation(e.target.value);setLibraryOffset(0);}}><option value="">All validation results</option><option value="passed">Passed</option><option value="passed_with_warnings">Passed with warnings</option><option value="failed">Failed</option></select>
+            <button onClick={()=>void loadRuleLibrary()}><RefreshCw size={15}/> Refresh</button>
+          </div>
+          {candidates.map(candidate=><article className="candidate-card" key={candidate.id}><div className="candidate-title"><div><b>{candidate.name}</b><small>{candidate.platform.toUpperCase()} · V{candidate.version} · {candidate.generator}</small></div><span>{candidate.validation_status}</span></div><pre>{candidate.query}</pre><small className="muted">Candidate · Not approved · Not deployable</small>{candidate.validation_report.errors?.length>0&&<small className="muted">Errors: {candidate.validation_report.errors.map(x=>x.message).join(" · ")}</small>}{candidate.validation_report.warnings?.length>0&&<small className="muted">Warnings: {candidate.validation_report.warnings.map(x=>x.message).join(" · ")}</small>}</article>)}
+          {candidates.length===0&&<p className="no-data">No rules match the selected filters.</p>}
+          <div className="library-pagination"><button disabled={libraryOffset===0} onClick={()=>setLibraryOffset(x=>Math.max(0,x-100))}>Previous</button><span>Showing {libraryOffset+1}–{libraryOffset+candidates.length}</span><button disabled={candidates.length<100} onClick={()=>setLibraryOffset(x=>x+100)}>Next</button></div>
+        </section>
+      </> : page === "Validation" || page === "Review queue" ? <>
         <section className="banner"><ShieldCheck/><div><b>{page}</b><p>Candidate queries and static validation results. Approval and production export are not enabled yet.</p></div><span>READ ONLY</span></section>
         <section className="panel intel-panel"><div className="panelhead"><div><b>Candidate inventory</b><p>Select an intent to inspect its candidates.</p></div><span>{candidates.length} candidates</span></div>
           <select className="intent-select" value={selectedIntentId} onChange={e=>setSelectedIntentId(e.target.value)}><option value="">Select intent</option>{intents.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select>
