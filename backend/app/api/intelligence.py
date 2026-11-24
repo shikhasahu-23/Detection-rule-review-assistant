@@ -5,7 +5,6 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func, select
-from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.authorization import Principal, assert_organization_access, get_current_principal
@@ -222,7 +221,7 @@ class EntityLinkCreate(BaseModel):
 
 class AttackMappingCreate(BaseModel):
     entity_id: UUID
-    technique_id: str = Field(pattern=r"^T[0-9]{4}(\\.[0-9]{3})?$")
+    technique_id: str = Field(pattern=r"^T[0-9]{4}(\.[0-9]{3})?$")
     technique_name: str = Field(min_length=1, max_length=255)
     rationale: str = Field(min_length=1, max_length=1000)
     confidence: float = Field(ge=0, le=100)
