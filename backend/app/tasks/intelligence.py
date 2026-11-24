@@ -1,7 +1,7 @@
 from app.db.session import SessionLocal
 from app.services.cisa_kev import sync_cisa_kev as ingest_cisa_kev
-from app.services.nvd import sync_nvd_cves as ingest_nvd_cves
 from app.services.mitre_attack import sync_attack_catalog
+from app.services.nvd import sync_nvd_cves as ingest_nvd_cves
 from app.worker import celery_app
 
 
