@@ -26,7 +26,7 @@ ThreatWeave brings the threat intelligence and detection engineering lifecycle t
 
 4. Open the frontend at `http://localhost:5173` and API docs at `http://localhost:8000/docs`.
 5. Check API health at `http://localhost:8000/health` and readiness at `http://localhost:8000/ready`.
-6. Celery Beat schedules daily CISA KEV (02:00 UTC) and NVD CVE (03:00 UTC) ingestion; the worker executes jobs. Keep a single Beat instance.
+6. Celery Beat schedules daily CISA KEV (02:00 UTC), NVD CVE (03:00 UTC), and MITRE ATT&CK (04:00 UTC) ingestion; the worker executes jobs. Keep a single Beat instance.
 
 Do not commit `.env` or real API credentials. To use AI-assisted detection generation, set `OPENAI_API_KEY` and optionally `OPENAI_MODEL` in the local `.env` after reviewing the provider's data-handling terms. The Rule Generator creates draft candidates only; every candidate requires analyst review and vendor-side validation.
 
