@@ -28,11 +28,39 @@ def _latest_checkpoint(db: Session, source_id: UUID, organization_id: UUID) -> d
     return previous.checkpoint or None if previous is not None else None
 
 
+_SENSITIVE_KEY_PARTS = ("authorization", "api_key", "apikey", "secret", "password", "token", "credential")
+_MAX_PAYLOAD_DEPTH = 5
+_MAX_PAYLOAD_ITEMS = 50
+_MAX_PAYLOAD_STRING = 2000
+
+
+def _safe_payload_value(value: object, *, depth: int = 0) -> object:
+    """Convert untrusted connector data into bounded, JSON-safe quarantine content."""
+    if depth >= _MAX_PAYLOAD_DEPTH:
+        return "[maximum nesting depth reached]"
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    if isinstance(value, str):
+        return value[:_MAX_PAYLOAD_STRING]
+    if isinstance(value, dict):
+        sanitized = {}
+        for key, item in list(value.items())[:_MAX_PAYLOAD_ITEMS]:
+            safe_key = str(key)[:120]
+            if any(part in safe_key.casefold() for part in _SENSITIVE_KEY_PARTS):
+                sanitized[safe_key] = "[REDACTED]"
+            else:
+                sanitized[safe_key] = _safe_payload_value(item, depth=depth + 1)
+        return sanitized
+    if isinstance(value, (list, tuple)):
+        return [_safe_payload_value(item, depth=depth + 1) for item in value[:_MAX_PAYLOAD_ITEMS]]
+    return str(value)[:_MAX_PAYLOAD_STRING]
+
+
 def _safe_payload(raw_record: object) -> dict:
+    """Bound quarantine size and redact credential-like fields from untrusted payloads."""
     if isinstance(raw_record, dict):
-        # Keep quarantine bounded and JSON-compatible; never persist connector configuration.
-        return {str(key)[:120]: value for key, value in list(raw_record.items())[:50]}
-    return {"value": str(raw_record)[:2000]}
+        return _safe_payload_value(raw_record)
+    return {"value": _safe_payload_value(raw_record)}
 
 
 async def run_intel_ingestion(
