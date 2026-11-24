@@ -1,5 +1,51 @@
+import { useEffect, useState } from "react";
 import { Activity, AlertTriangle, ArrowUpRight, Bot, BrainCircuit, CheckCircle2, ChevronRight, Database, FileSearch, Layers3, Radar, ShieldCheck, ShieldEllipsis, Sparkles } from "lucide-react";
 
 const nav = [{label:"Overview",icon:Layers3,active:true},{label:"Threat intelligence",icon:Radar},{label:"Rule generator",icon:Sparkles},{label:"Validation",icon:ShieldCheck},{label:"Review queue",icon:FileSearch},{label:"Rule library",icon:Database}];
 const stats = [{label:"Active intelligence",value:"—",note:"Awaiting feed setup",icon:Radar},{label:"Candidate detections",value:"0",note:"No rules generated yet",icon:BrainCircuit},{label:"Pending reviews",value:"0",note:"Human approval required",icon:FileSearch},{label:"Approved rules",value:"0",note:"Versioned rule library",icon:ShieldCheck}];
-export default function App(){return <div className="shell"><aside className="sidebar"><div className="brand"><div className="brandmark"><ShieldEllipsis/></div><div><b>DetectionOps</b><small>REVIEW ASSISTANT</small></div></div><label>WORKSPACE</label><div className="workspace"><span>S</span><div><b>Security Engineering</b><small>Team workspace</small></div><ChevronRight size={15}/></div><nav>{nav.map(({label,icon:Icon,active})=><a className={active?"nav active":"nav"} href="#" key={label}><Icon size={17}/>{label}{label==="Review queue"&&<i>0</i>}</a>)}</nav><div className="sidebottom"><span className="live-dot"/> Platform initialized<hr/><div className="user"><b>SE</b><div>Team member<small>Workspace access</small></div></div></div></aside><main><header><span>Workspace　›　<b>Overview</b></span><small><span className="live-dot"/> DEVELOPMENT</small></header><section className="heading"><div><label>DETECTION ENGINEERING WORKSPACE</label><h1>Good morning, team 👋</h1><p>Your threat intelligence and detection engineering command center.</p></div><button disabled><Sparkles size={16}/> Generate detection <small>SOON</small></button></section><section className="banner"><Activity/><div><b>Your workspace is ready for configuration</b><p>Connect intelligence sources and configure your telemetry before generating detection candidates.</p></div><span>PHASE 0</span></section><section className="stats">{stats.map(({label,value,note,icon:Icon})=><article key={label}><div>{label}<Icon size={18}/></div><strong>{value}</strong><small>{note}</small></article>)}</section><section className="columns"><article className="panel"><div className="panelhead"><div><b>Getting started</b><p>Complete these steps to activate your workspace.</p></div><small>0 of 4</small></div><div className="progress"/>{[{title:"Configure intelligence sources",desc:"Connect public feeds and add custom intelligence sources",icon:Radar},{title:"Define your telemetry",desc:"Map the event sources and fields available in your SIEMs",icon:Database},{title:"Choose your AI provider",desc:"Configure an approved model provider and generation policy",icon:Bot},{title:"Invite your reviewers",desc:"Set up team roles and the human approval workflow",icon:ShieldCheck}].map(({title,desc,icon:Icon})=><div className="step" key={title}><Icon/><div><b>{title}</b><small>{desc}</small></div><label>UP NEXT</label><ChevronRight size={15}/></div>)}</article><article className="panel activity"><div className="panelhead"><div><b>Platform activity</b><p>Latest system events</p></div><ArrowUpRight/></div><div className="empty"><CheckCircle2/><b>All quiet for now</b><p>Activity will appear here as intelligence is ingested, detections are generated, and rules are reviewed.</p></div></article></section><div className="footnote"><AlertTriangle size={15}/> Generated detections will remain in review until an authorized team member approves them. Production deployment is not enabled.</div><footer>DETECTION RULE REVIEW ASSISTANT　•　TEAM WORKSPACE　•　FOUNDATION BUILD</footer></main></div>}
+
+type ApiState = "checking" | "ready" | "unavailable" | "not-configured";
+
+function ApiConnection() {
+  const [state, setState] = useState<ApiState>("checking");
+
+  useEffect(() => {
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
+    if (!apiBaseUrl) {
+      setState("not-configured");
+      return;
+    }
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 10000);
+
+    fetch(`${apiBaseUrl}/ready`, { signal: controller.signal })
+      .then((response) => {
+        if (!response.ok) throw new Error("API readiness check failed");
+        return response.json();
+      })
+      .then((result: { status?: string }) => {
+        setState(result.status === "ready" ? "ready" : "unavailable");
+      })
+      .catch(() => setState("unavailable"))
+      .finally(() => window.clearTimeout(timeout));
+
+    return () => {
+      controller.abort();
+      window.clearTimeout(timeout);
+    };
+  }, []);
+
+  const labels: Record<ApiState, string> = {
+    checking: "Checking API…",
+    ready: "API + database ready",
+    unavailable: "API unavailable",
+    "not-configured": "API URL not configured",
+  };
+
+  return <span className={`api-connection api-${state}`} role="status"><span className="api-dot" />{labels[state]}</span>;
+}
+
+export default function App() {
+  return <div className="shell"><aside className="sidebar"><div className="brand"><div className="brandmark"><ShieldEllipsis/></div><div><b>DetectionOps</b><small>REVIEW ASSISTANT</small></div></div><label>WORKSPACE</label><div className="workspace"><span>S</span><div><b>Security Engineering</b><small>Team workspace</small></div><ChevronRight size={15}/></div><nav>{nav.map(({label,icon:Icon,active})=><a className={active?"nav active":"nav"} href="#" key={label}><Icon size={17}/>{label}{label==="Review queue"&&<i>0</i>}</a>)}</nav><div className="sidebottom"><span className="live-dot"/> Platform initialized<hr/><div className="user"><b>SE</b><div>Team member<small>Workspace access</small></div></div></div></aside><main><header><span>Workspace　›　<b>Overview</b></span><div className="header-status"><ApiConnection/><small><span className="live-dot"/> DEVELOPMENT</small></div></header><section className="heading"><div><label>DETECTION ENGINEERING WORKSPACE</label><h1>Good morning, team 👋</h1><p>Your threat intelligence and detection engineering command center.</p></div><button disabled><Sparkles size={16}/> Generate detection <small>SOON</small></button></section><section className="banner"><Activity/><div><b>Your workspace is ready for configuration</b><p>Connect intelligence sources and configure your telemetry before generating detection candidates.</p></div><span>PHASE 0</span></section><section className="stats">{stats.map(({label,value,note,icon:Icon})=><article key={label}><div>{label}<Icon size={18}/></div><strong>{value}</strong><small>{note}</small></article>)}</section><section className="columns"><article className="panel"><div className="panelhead"><div><b>Getting started</b><p>Complete these steps to activate your workspace.</p></div><small>0 of 4</small></div><div className="progress"/>{[{title:"Configure intelligence sources",desc:"Connect public feeds and add custom intelligence sources",icon:Radar},{title:"Define your telemetry",desc:"Map the event sources and fields available in your SIEMs",icon:Database},{title:"Choose your AI provider",desc:"Configure an approved model provider and generation policy",icon:Bot},{title:"Invite your reviewers",desc:"Set up team roles and the human approval workflow",icon:ShieldCheck}].map(({title,desc,icon:Icon})=><div className="step" key={title}><Icon/><div><b>{title}</b><small>{desc}</small></div><label>UP NEXT</label><ChevronRight size={15}/></div>)}</article><article className="panel activity"><div className="panelhead"><div><b>Platform activity</b><p>Latest system events</p></div><ArrowUpRight/></div><div className="empty"><CheckCircle2/><b>All quiet for now</b><p>Activity will appear here as intelligence is ingested, detections are generated, and rules are reviewed.</p></div></article></section><div className="footnote"><AlertTriangle size={15}/> Generated detections will remain in review until an authorized team member approves them. Production deployment is not enabled.</div><footer>DETECTION RULE REVIEW ASSISTANT　•　TEAM WORKSPACE　•　FOUNDATION BUILD</footer></main></div>;
+}
