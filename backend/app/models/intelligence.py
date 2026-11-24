@@ -102,3 +102,67 @@ class IntelQuarantineRecord(Base):
     raw_payload: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     reason: Mapped[str] = mapped_column(String(500), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+
+
+class ThreatEntity(Base):
+    __tablename__ = "threat_entities"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "entity_type", "normalized_name"),
+        Index("ix_threat_entities_org_type", "organization_id", "entity_type"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    entity_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    normalized_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class IntelEntityLink(Base):
+    __tablename__ = "intel_entity_links"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "record_id", "entity_id", "relationship_type"),
+        Index("ix_intel_entity_links_entity", "organization_id", "entity_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    record_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("intel_records.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("threat_entities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    relationship_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    rationale: Mapped[str] = mapped_column(String(1000), nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class AttackTechniqueMapping(Base):
+    __tablename__ = "attack_technique_mappings"
+    __table_args__ = (
+        UniqueConstraint("organization_id", "entity_id", "technique_id"),
+        Index("ix_attack_mappings_org_technique", "organization_id", "technique_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    entity_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("threat_entities.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    technique_id: Mapped[str] = mapped_column(String(16), nullable=False)
+    technique_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    rationale: Mapped[str] = mapped_column(String(1000), nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    mapping_status: Mapped[str] = mapped_column(String(24), default="uncertain", nullable=False)
+    source_reference: Mapped[str | None] = mapped_column(String(2048))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
