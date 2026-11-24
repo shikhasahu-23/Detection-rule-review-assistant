@@ -112,6 +112,38 @@ def test_threat_entity_correlation_and_attack_mapping_are_tenant_scoped():
             f"/api/v1/intelligence/organizations/{other_id}/entities"
         )
         assert cross_tenant.status_code == 404
+
+        # Viewers may inspect intelligence but must not mutate correlation data.
+        app.dependency_overrides[get_current_principal] = lambda: Principal(
+            user_id=uuid4(), organization_id=organization_id, role=Role.VIEWER
+        )
+        viewer_entity = client.post(
+            f"{base}/entities",
+            json={"entity_type": "malware", "name": "Viewer-created entity"},
+        )
+        viewer_link = client.post(
+            f"{base}/entity-links",
+            json={
+                "record_id": str(record_id),
+                "entity_id": entity["id"],
+                "relationship_type": "associated_with",
+                "rationale": "Viewer write should be blocked",
+                "confidence": 50,
+            },
+        )
+        viewer_mapping = client.post(
+            f"{base}/attack-mappings",
+            json={
+                "entity_id": entity["id"],
+                "technique_id": "T1059",
+                "technique_name": "Command and Scripting Interpreter",
+                "rationale": "Viewer write should be blocked",
+                "confidence": 50,
+            },
+        )
+        assert viewer_entity.status_code == 403
+        assert viewer_link.status_code == 403
+        assert viewer_mapping.status_code == 403
     finally:
         app.dependency_overrides.clear()
         engine.dispose()
