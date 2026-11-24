@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from typing import Annotated
 from uuid import UUID
 
@@ -16,9 +17,8 @@ from app.services.generation import (
     GenerationUnavailable,
     get_generation_provider,
 )
-from app.services.validation import validate_candidate
 from app.services.platforms import get_platform_contract
-from datetime import UTC, datetime
+from app.services.validation import validate_candidate
 
 router = APIRouter(prefix="/api/v1/detection-intents", tags=["detection generation"])
 DbSession = Annotated[Session, Depends(get_db)]
