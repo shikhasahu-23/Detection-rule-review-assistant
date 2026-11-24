@@ -140,6 +140,7 @@ function App() {
     } finally { setGenerating(false); }
   };
 
+  const selectedIntent = intents.find((item) => item.id === selectedIntentId);
   const filtered = indicators.filter((item) =>
     item.value.toLowerCase().includes(query.toLowerCase()) ||
     (item.description || "").toLowerCase().includes(query.toLowerCase())
@@ -196,7 +197,7 @@ function App() {
           <article className="panel"><div className="panelhead"><div><b>Generate candidates</b><p>Use the configured OpenAI provider to draft queries.</p></div></div>
             <div className="intent-form">
               <label>SAVED DETECTION INTENT</label><select value={selectedIntentId} onChange={e=>{const id=e.target.value;setSelectedIntentId(id);const found=intents.find(x=>x.id===id);if(found)setTargetPlatforms(found.target_platforms);}}><option value="">Select a detection intent</option>{intents.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select>
-              <label>PLATFORMS TO GENERATE</label><div className="platform-options">{["splunk","sentinel","chronicle","crowdstrike"].map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform}</label>)}</div>
+              <label>PLATFORMS TO GENERATE</label><div className="platform-options">{(selectedIntent?.target_platforms ?? []).map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform}</label>)}</div>
               <button className="primary-action" disabled={generating||!selectedIntentId||targetPlatforms.length===0} onClick={generateRules}><Sparkles size={15}/>{generating?"Generating…":"Generate detection candidates"}</button>
               <p className="muted">Requires OPENAI_API_KEY on the backend. Generation never approves or deploys a rule.</p>
             </div>
