@@ -11,9 +11,9 @@ from app.db.session import get_db
 from app.models.attack import AttackTechnique
 from app.models.intelligence import FeedRun, Indicator, SourceEvidence
 from app.services.cisa_kev import sync_cisa_kev
+from app.services.custom_csv import sync_custom_csv
 from app.services.mitre_attack import sync_attack_catalog
 from app.services.nvd import sync_nvd_cves
-from app.services.custom_csv import sync_custom_csv
 
 router = APIRouter(prefix="/api/v1/intelligence", tags=["threat intelligence"])
 
