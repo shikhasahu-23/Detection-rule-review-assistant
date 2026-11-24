@@ -1,5 +1,3 @@
-from uuid import uuid4
-
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -16,7 +14,7 @@ def test_identity_endpoint_rejects_requests_without_trusted_principal():
 
 
 def test_intelligence_read_endpoints_reject_unauthenticated_requests():
-    organization_id = uuid4()
+    organization_id = "00000000-0000-0000-0000-000000000001"
     paths = [
         f"/api/v1/intelligence/organizations/{organization_id}/feeds/health",
         f"/api/v1/intelligence/organizations/{organization_id}/ingestion-runs",
