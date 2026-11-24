@@ -20,6 +20,8 @@ type ApiState = "checking" | "ready" | "unavailable" | "not-configured";
 
 function ApiConnection() {
   const [state, setState] = useState<ApiState>("checking");
+  const [environment, setEnvironment] = useState("ENV UNKNOWN");
+
   useEffect(() => {
     const apiBaseUrl = import.meta.env.VITE_API_BASE_URL?.replace(/\/$/, "");
     if (!apiBaseUrl) {
@@ -28,14 +30,28 @@ function ApiConnection() {
     }
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 10000);
-    fetch(`${apiBaseUrl}/ready`, { signal: controller.signal })
-      .then((response) => {
-        if (!response.ok) throw new Error("API readiness check failed");
-        return response.json();
+
+    Promise.all([
+      fetch(`${apiBaseUrl}/ready`, { signal: controller.signal }),
+      fetch(`${apiBaseUrl}/health`, { signal: controller.signal }),
+    ])
+      .then(async ([readyResponse, healthResponse]) => {
+        if (!readyResponse.ok || !healthResponse.ok) {
+          throw new Error("API status check failed");
+        }
+        const [ready, health] = await Promise.all([
+          readyResponse.json() as Promise<{ status?: string }>,
+          healthResponse.json() as Promise<{ environment?: string }>,
+        ]);
+        setState(ready.status === "ready" ? "ready" : "unavailable");
+        setEnvironment(health.environment?.trim().toUpperCase() || "ENV UNKNOWN");
       })
-      .then((result: { status?: string }) => setState(result.status === "ready" ? "ready" : "unavailable"))
-      .catch(() => setState("unavailable"))
+      .catch(() => {
+        setState("unavailable");
+        setEnvironment("ENV UNKNOWN");
+      })
       .finally(() => window.clearTimeout(timeout));
+
     return () => {
       controller.abort();
       window.clearTimeout(timeout);
@@ -48,7 +64,14 @@ function ApiConnection() {
     unavailable: "API unavailable",
     "not-configured": "API URL not configured",
   };
-  return <span className={`api-connection api-${state}`} role="status"><span className="api-dot" />{labels[state]}</span>;
+  return (
+    <>
+      <span className={`api-connection api-${state}`} role="status">
+        <span className="api-dot" />{labels[state]}
+      </span>
+      <small><span className="live-dot" /> {environment}</small>
+    </>
+  );
 }
 
 export default function App() {
@@ -74,7 +97,7 @@ export default function App() {
         <div className="sidebottom"><span className="live-dot" /> Foundation services initialized<hr /><div className="user"><b>SE</b><div>Workspace member<small>Authentication pending</small></div></div></div>
       </aside>
       <main id="overview">
-        <header><span>Workspace　›　<b>Overview</b></span><div className="header-status"><ApiConnection /><small><span className="live-dot" /> DEVELOPMENT</small></div></header>
+        <header><span>Workspace　›　<b>Overview</b></span><div className="header-status"><ApiConnection /></div></header>
         <section className="heading">
           <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>Welcome to Threat Detection Hub</h1><p>A foundation for threat intelligence, detection engineering and controlled rule review.</p></div>
           <button disabled title="Available after authentication and workflow setup"><Sparkles size={16} /> Generate detection <small>LOCKED</small></button>
