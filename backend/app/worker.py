@@ -25,5 +25,9 @@ celery_app.conf.update(
             "task": "app.tasks.intelligence.sync_nvd_cves",
             "schedule": crontab(hour=3, minute=0),
         },
+        "sync-mitre-attack-daily": {
+            "task": "app.tasks.intelligence.sync_mitre_attack",
+            "schedule": crontab(hour=4, minute=0),
+        },
     },
 )
