@@ -60,6 +60,14 @@ def _authorize(principal: Principal, organization_id: UUID) -> None:
     assert_organization_access(principal, organization_id)
 
 
+def _is_expired(expires_at: datetime | None, now: datetime) -> bool:
+    if expires_at is None:
+        return False
+    # SQLite may return timezone-naive values for timezone-aware columns.
+    normalized_expiry = expires_at.replace(tzinfo=UTC) if expires_at.tzinfo is None else expires_at
+    return normalized_expiry <= now
+
+
 @router.get("/organizations/{organization_id}/feeds/health", response_model=list[FeedHealthItem])
 def feed_health(
     organization_id: UUID,
@@ -158,7 +166,7 @@ def indicator_lifecycle(
             first_seen_at=record.first_seen_at,
             last_seen_at=record.last_seen_at,
             expires_at=record.expires_at,
-            lifecycle="expired" if record.expires_at and record.expires_at <= now else "active",
+            lifecycle="expired" if _is_expired(record.expires_at, now) else "active",
         )
         for record in records
     ]
