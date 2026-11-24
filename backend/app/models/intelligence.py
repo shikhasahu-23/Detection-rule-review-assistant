@@ -89,3 +89,16 @@ class IntelEvidence(Base):
     parser_version: Mapped[str] = mapped_column(String(40), nullable=False)
 
     record: Mapped[IntelRecord] = relationship(back_populates="evidence")
+
+
+class IntelQuarantineRecord(Base):
+    __tablename__ = "intel_quarantine_records"
+    __table_args__ = (Index("ix_intel_quarantine_org_created", "organization_id", "created_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(Uuid, primary_key=True, default=uuid.uuid4)
+    organization_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("organizations.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("intel_sources.id", ondelete="CASCADE"), nullable=False, index=True)
+    ingestion_run_id: Mapped[uuid.UUID] = mapped_column(Uuid, ForeignKey("ingestion_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    raw_payload: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
+    reason: Mapped[str] = mapped_column(String(500), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
