@@ -3,13 +3,13 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.authorization import Principal, assert_organization_access, get_current_principal
 from app.db.session import get_db
-from app.models.intelligence import IngestionRun, IntelQuarantineRecord, IntelRecord, IntelSource
+from app.models.intelligence import (\n    AttackTechniqueMapping,\n    IngestionRun,\n    IntelEntityLink,\n    IntelQuarantineRecord,\n    IntelRecord,\n    IntelSource,\n    ThreatEntity,\n)
 
 router = APIRouter(prefix="/api/v1/intelligence", tags=["intelligence"])
 
@@ -170,3 +170,263 @@ def indicator_lifecycle(
         )
         for record in records
     ]
+
+
+ENTITY_TYPES = {"actor", "malware", "campaign", "tool", "vulnerability", "infrastructure"}
+RELATIONSHIP_TYPES = {"uses", "attributed_to", "communicates_with", "hosts", "exploits", "associated_with"}
+
+
+class ThreatEntityCreate(BaseModel):
+    entity_type: str
+    name: str = Field(min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=4000)
+
+    @field_validator("entity_type")
+    @classmethod
+    def validate_entity_type(cls, value: str) -> str:
+        value = value.strip().lower()
+        if value not in ENTITY_TYPES:
+            raise ValueError("Unsupported threat entity type")
+        return value
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        return value.strip()
+
+
+class EntityLinkCreate(BaseModel):
+    record_id: UUID
+    entity_id: UUID
+    relationship_type: str
+    rationale: str = Field(min_length=1, max_length=1000)
+    confidence: float = Field(ge=0, le=100)
+
+    @field_validator("relationship_type")
+    @classmethod
+    def validate_relationship(cls, value: str) -> str:
+        value = value.strip().lower()
+        if value not in RELATIONSHIP_TYPES:
+            raise ValueError("Unsupported relationship type")
+        return value
+
+
+class AttackMappingCreate(BaseModel):
+    entity_id: UUID
+    technique_id: str = Field(pattern=r"^T[0-9]{4}(\\.[0-9]{3})?$")
+    technique_name: str = Field(min_length=1, max_length=255)
+    rationale: str = Field(min_length=1, max_length=1000)
+    confidence: float = Field(ge=0, le=100)
+    mapping_status: str = "uncertain"
+    source_reference: str | None = Field(default=None, max_length=2048)
+
+    @field_validator("mapping_status")
+    @classmethod
+    def validate_mapping_status(cls, value: str) -> str:
+        if value not in {"uncertain", "proposed", "confirmed", "rejected"}:
+            raise ValueError("Unsupported ATT&CK mapping status")
+        return value
+
+
+class ThreatEntityItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    entity_type: str
+    name: str
+    normalized_name: str
+    description: str | None
+
+
+class EntityLinkItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    record_id: UUID
+    entity_id: UUID
+    relationship_type: str
+    rationale: str
+    confidence: float
+
+
+class AttackMappingItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+    id: UUID
+    entity_id: UUID
+    technique_id: str
+    technique_name: str
+    rationale: str
+    confidence: float
+    mapping_status: str
+    source_reference: str | None
+
+
+@router.post("/organizations/{organization_id}/entities", response_model=ThreatEntityItem, status_code=201)
+def create_threat_entity(
+    organization_id: UUID,
+    payload: ThreatEntityCreate,
+    principal: Annotated[Principal, Depends(get_current_principal)],
+    db: Annotated[Session, Depends(get_db)],
+) -> ThreatEntityItem:
+    _authorize(principal, organization_id)
+    normalized = payload.name.casefold()
+    entity = db.scalar(select(ThreatEntity).where(
+        ThreatEntity.organization_id == organization_id,
+        ThreatEntity.entity_type == payload.entity_type,
+        ThreatEntity.normalized_name == normalized,
+    ))
+    if entity is not None:
+        return ThreatEntityItem.model_validate(entity)
+    entity = ThreatEntity(
+        organization_id=organization_id,
+        entity_type=payload.entity_type,
+        name=payload.name,
+        normalized_name=normalized,
+        description=payload.description,
+    )
+    db.add(entity)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        entity = db.scalar(select(ThreatEntity).where(
+            ThreatEntity.organization_id == organization_id,
+            ThreatEntity.entity_type == payload.entity_type,
+            ThreatEntity.normalized_name == normalized,
+        ))
+        if entity is None:
+            raise
+    db.refresh(entity)
+    return ThreatEntityItem.model_validate(entity)
+
+
+@router.post("/organizations/{organization_id}/entity-links", response_model=EntityLinkItem, status_code=201)
+def link_indicator_to_entity(
+    organization_id: UUID,
+    payload: EntityLinkCreate,
+    principal: Annotated[Principal, Depends(get_current_principal)],
+    db: Annotated[Session, Depends(get_db)],
+) -> EntityLinkItem:
+    _authorize(principal, organization_id)
+    record = db.scalar(select(IntelRecord).where(
+        IntelRecord.id == payload.record_id,
+        IntelRecord.organization_id == organization_id,
+    ))
+    entity = db.scalar(select(ThreatEntity).where(
+        ThreatEntity.id == payload.entity_id,
+        ThreatEntity.organization_id == organization_id,
+    ))
+    if record is None or entity is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Resource not found")
+    link = db.scalar(select(IntelEntityLink).where(
+        IntelEntityLink.organization_id == organization_id,
+        IntelEntityLink.record_id == record.id,
+        IntelEntityLink.entity_id == entity.id,
+        IntelEntityLink.relationship_type == payload.relationship_type,
+    ))
+    if link is None:
+        link = IntelEntityLink(
+            organization_id=organization_id,
+            record_id=record.id,
+            entity_id=entity.id,
+            relationship_type=payload.relationship_type,
+            rationale=payload.rationale,
+            confidence=payload.confidence,
+        )
+        db.add(link)
+        db.commit()
+        db.refresh(link)
+    return EntityLinkItem.model_validate(link)
+
+
+@router.post("/organizations/{organization_id}/attack-mappings", response_model=AttackMappingItem, status_code=201)
+def create_attack_mapping(
+    organization_id: UUID,
+    payload: AttackMappingCreate,
+    principal: Annotated[Principal, Depends(get_current_principal)],
+    db: Annotated[Session, Depends(get_db)],
+) -> AttackMappingItem:
+    _authorize(principal, organization_id)
+    entity = db.scalar(select(ThreatEntity).where(
+        ThreatEntity.id == payload.entity_id,
+        ThreatEntity.organization_id == organization_id,
+    ))
+    if entity is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Resource not found")
+    mapping = db.scalar(select(AttackTechniqueMapping).where(
+        AttackTechniqueMapping.organization_id == organization_id,
+        AttackTechniqueMapping.entity_id == entity.id,
+        AttackTechniqueMapping.technique_id == payload.technique_id,
+    ))
+    if mapping is None:
+        mapping = AttackTechniqueMapping(
+            organization_id=organization_id,
+            entity_id=entity.id,
+            technique_id=payload.technique_id,
+            technique_name=payload.technique_name.strip(),
+            rationale=payload.rationale,
+            confidence=payload.confidence,
+            mapping_status=payload.mapping_status,
+            source_reference=payload.source_reference,
+        )
+        db.add(mapping)
+        db.commit()
+        db.refresh(mapping)
+    return AttackMappingItem.model_validate(mapping)
+
+
+@router.get("/organizations/{organization_id}/entities", response_model=list[ThreatEntityItem])
+def list_threat_entities(
+    organization_id: UUID,
+    principal: Annotated[Principal, Depends(get_current_principal)],
+    db: Annotated[Session, Depends(get_db)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[ThreatEntityItem]:
+    _authorize(principal, organization_id)
+    entities = db.scalars(select(ThreatEntity).where(
+        ThreatEntity.organization_id == organization_id
+    ).order_by(ThreatEntity.name).limit(limit).offset(offset)).all()
+    return [ThreatEntityItem.model_validate(item) for item in entities]
+
+
+@router.get("/organizations/{organization_id}/entities/{entity_id}/relationships", response_model=list[EntityLinkItem])
+def list_entity_relationships(
+    organization_id: UUID,
+    entity_id: UUID,
+    principal: Annotated[Principal, Depends(get_current_principal)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[EntityLinkItem]:
+    _authorize(principal, organization_id)
+    entity = db.scalar(select(ThreatEntity.id).where(
+        ThreatEntity.id == entity_id, ThreatEntity.organization_id == organization_id
+    ))
+    if entity is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Resource not found")
+    links = db.scalars(select(IntelEntityLink).where(
+        IntelEntityLink.organization_id == organization_id,
+        IntelEntityLink.entity_id == entity_id,
+    ).order_by(IntelEntityLink.created_at.desc())).all()
+    return [EntityLinkItem.model_validate(item) for item in links]
+
+
+@router.get("/organizations/{organization_id}/entities/{entity_id}/attack-mappings", response_model=list[AttackMappingItem])
+def list_attack_mappings(
+    organization_id: UUID,
+    entity_id: UUID,
+    principal: Annotated[Principal, Depends(get_current_principal)],
+    db: Annotated[Session, Depends(get_db)],
+) -> list[AttackMappingItem]:
+    _authorize(principal, organization_id)
+    entity = db.scalar(select(ThreatEntity.id).where(
+        ThreatEntity.id == entity_id, ThreatEntity.organization_id == organization_id
+    ))
+    if entity is None:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Resource not found")
+    mappings = db.scalars(select(AttackTechniqueMapping).where(
+        AttackTechniqueMapping.organization_id == organization_id,
+        AttackTechniqueMapping.entity_id == entity_id,
+    ).order_by(AttackTechniqueMapping.technique_id)).all()
+    return [AttackMappingItem.model_validate(item) for item in mappings]
