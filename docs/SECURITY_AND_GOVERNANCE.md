@@ -38,6 +38,7 @@
 - Retain multiple source-evidence links for deduplicated indicators.
 - Document licensing, terms and rate limits for every feed.
 - Quarantine malformed records with diagnostic metadata.
+- Quarantine payloads are size-bounded, recursively normalized to JSON-safe values, and redact common credential-like keys (authorization, API keys, secrets, passwords, tokens and credentials). This is defense in depth, not a substitute for excluding secrets from feed payloads.
 
 ## Audit and retention
 
