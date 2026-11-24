@@ -1,6 +1,7 @@
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
+from uuid import UUID
 
 from app.db.base import Base
 from app.models.detection import DetectionIntent
@@ -56,7 +57,7 @@ def test_pipeline_runs_enrichment_correlation_and_creates_unapproved_candidate()
     )
 
     candidate = db.scalar(select(RuleCandidate))
-    run = db.get(PipelineRun, result["run_id"])
+    run = db.get(PipelineRun, UUID(result["run_id"]))
     assert result["status"] == "succeeded"
     assert result["indicators_enriched"] == 1
     assert result["opportunities_found"] == 1
