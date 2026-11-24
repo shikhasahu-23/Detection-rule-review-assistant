@@ -10,7 +10,7 @@ from app.intel.connectors.base import ConnectorHealth, ConnectorStatus, IntelCon
 from app.intel.schemas import IndicatorType, IntelEvidenceInput, IntelIndicatorInput
 from app.models.identity import Organization
 from app.models.intelligence import IntelEvidence, IntelQuarantineRecord, IntelRecord, IntelSource
-from app.services.intel_ingestion import run_intel_ingestion
+from app.services.intel_ingestion import _safe_payload, run_intel_ingestion
 
 
 class FakeConnector(IntelConnector):
@@ -161,3 +161,24 @@ async def test_ingestion_persists_failed_run_without_exposing_connector_error(db
     assert run.completed_at is not None
     assert run.error_summary == "RuntimeError: intelligence ingestion failed"
     assert "sensitive details" not in run.error_summary
+
+
+
+def test_quarantine_payload_redacts_nested_credentials_and_bounds_values():
+    payload = _safe_payload(
+        {
+            "indicator": "malicious.example",
+            "api_key": "top-secret",
+            "nested": {
+                "Authorization": "Bearer sensitive",
+                "description": "x" * 2500,
+            },
+            "items": [{"access_token": "another-secret"}],
+        }
+    )
+
+    assert payload["indicator"] == "malicious.example"
+    assert payload["api_key"] == "[REDACTED]"
+    assert payload["nested"]["Authorization"] == "[REDACTED]"
+    assert len(payload["nested"]["description"]) == 2000
+    assert payload["items"][0]["access_token"] == "[REDACTED]"
