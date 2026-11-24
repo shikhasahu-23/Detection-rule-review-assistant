@@ -18,6 +18,7 @@ from app.services.enrichment import detection_opportunities, enrich_indicator
 from app.services.generation import GenerationProvider, get_generation_provider
 from app.services.mitre_attack import sync_attack_catalog
 from app.services.nvd import sync_nvd_cves
+from app.services.platforms import get_platform_contract
 from app.services.validation import validate_candidate
 
 FeedSyncer = Callable[[Session], dict]
@@ -148,7 +149,7 @@ def run_intelligence_pipeline(
                         RuleCandidate.intent_id == intent.id,
                         RuleCandidate.platform == platform.value,
                     )) or 0
-                    report = validate_candidate(platform, draft.query)
+                    report = validate_candidate(platform, draft.query, _intent_payload(intent))
                     db.add(RuleCandidate(
                         intent_id=intent.id,
                         name=draft.name,
@@ -158,6 +159,13 @@ def run_intelligence_pipeline(
                         status="candidate",
                         validation_status=report["status"],
                         validation_report=report,
+                        generation_metadata={
+                            "provider": type(active_provider).__name__,
+                            "model": getattr(active_provider, "model", "configured-provider"),
+                            "prompt_version": get_platform_contract(platform).prompt_version,
+                            "generated_at": datetime.now(UTC).isoformat(),
+                            "validation_scope": get_platform_contract(platform).validation_scope,
+                        },
                         generator="pipeline",
                     ))
                     db.commit()

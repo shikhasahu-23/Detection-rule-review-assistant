@@ -1,0 +1,6 @@
+{
+  "platform": "chronicle",
+  "name": "Suspicious PowerShell process",
+  "query": "rule suspicious_powershell { events: $e.metadata.event_type = \"PROCESS_LAUNCH\" $e.target.process.file.full_path = /powershell\\.exe/ condition: $e }",
+  "expected_validation": "passed_with_warnings"
+}

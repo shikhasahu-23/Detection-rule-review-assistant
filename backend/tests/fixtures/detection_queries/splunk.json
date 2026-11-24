@@ -1,0 +1,6 @@
+{
+  "platform": "splunk",
+  "name": "Suspicious PowerShell process",
+  "query": "search index=endpoint process_name=powershell.exe command_line=*download*",
+  "expected_validation": "passed_with_warnings"
+}

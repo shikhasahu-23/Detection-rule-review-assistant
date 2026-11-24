@@ -25,7 +25,8 @@ def create_candidate(intent_id: UUID, payload: RuleCandidateCreate, db: DbSessio
     version = db.scalar(select(func.max(RuleCandidate.version)).where(
         RuleCandidate.intent_id == intent_id, RuleCandidate.platform == payload.platform.value
     )) or 0
-    report = validate_candidate(payload.platform, payload.query)
+    intent_data = {"required_telemetry": intent.required_telemetry}
+    report = validate_candidate(payload.platform, payload.query, intent_data)
     candidate = RuleCandidate(
         intent_id=intent_id,
         name=payload.name,

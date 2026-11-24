@@ -1,0 +1,6 @@
+{
+  "platform": "crowdstrike",
+  "name": "CrowdStrike grammar verification required",
+  "query": "Vendor grammar verification required; do not deploy this placeholder.",
+  "expected_validation": "passed_with_warnings"
+}

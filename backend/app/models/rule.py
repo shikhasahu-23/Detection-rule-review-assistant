@@ -27,5 +27,6 @@ class RuleCandidate(Base):
     status: Mapped[str] = mapped_column(String(24), default="candidate", nullable=False, index=True)
     validation_status: Mapped[str] = mapped_column(String(24), default="not_run", nullable=False)
     validation_report: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
+    generation_metadata: Mapped[dict[str, Any]] = mapped_column(JSON, default=dict, nullable=False)
     generator: Mapped[str] = mapped_column(String(80), default="manual", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
