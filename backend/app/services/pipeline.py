@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
-from typing import Callable
+from collections.abc import Callable
 from uuid import UUID
 
 from sqlalchemy import desc, func, select
@@ -67,7 +67,7 @@ def run_intelligence_pipeline(
     for name, syncer in syncers.items():
         try:
             stage_results[name] = {"status": "succeeded", "result": syncer(db)}
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - pipeline stages must report independent failures and continue
             db.rollback()
             message = f"{type(exc).__name__}: {str(exc)[:400]}"
             stage_results[name] = {"status": "failed", "error": message}
