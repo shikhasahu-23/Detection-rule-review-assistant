@@ -1,9 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
 from app.api.identity import router as identity_router
 from app.api.intelligence import router as intelligence_router
 from app.core.config import get_settings
+from app.db.session import engine
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name, version="0.1.0", description="Detection engineering API")
@@ -25,5 +27,12 @@ async def health() -> dict[str, str]:
 
 @app.get("/ready", tags=["operations"])
 async def ready() -> dict[str, str]:
-    # Database and queue dependency checks will be added in the next phase.
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except Exception as exc:  # noqa: BLE001 - report dependency outages as not ready
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database is unavailable",
+        ) from exc
     return {"status": "ready"}
