@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.models.attack import AttackTechnique
 from app.models.intelligence import FeedRun, Indicator, SourceEvidence
+from app.services.enrichment import detection_opportunities, enrich_indicator
 from app.services.cisa_kev import sync_cisa_kev
 from app.services.custom_csv import sync_custom_csv
 from app.services.mitre_attack import sync_attack_catalog
@@ -166,3 +167,23 @@ async def import_custom_csv(request: Request, db: Annotated[Session, Depends(get
         raise HTTPException(status_code=422, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail="Custom CSV ingestion failed") from exc
+
+
+
+@router.get("/indicators/{indicator_id}/enrichment")
+def get_indicator_enrichment(
+    indicator_id: UUID,
+    db: Annotated[Session, Depends(get_db)],
+) -> dict:
+    result = enrich_indicator(db, indicator_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Indicator not found")
+    return result
+
+
+@router.get("/detection-opportunities")
+def list_detection_opportunities(
+    db: Annotated[Session, Depends(get_db)],
+    limit: int = Query(default=100, ge=1, le=500),
+) -> list[dict]:
+    return detection_opportunities(db, limit=limit)
