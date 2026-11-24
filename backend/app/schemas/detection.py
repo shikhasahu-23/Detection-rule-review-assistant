@@ -40,7 +40,7 @@ class DetectionIntentCreate(BaseModel):
     @classmethod
     def validate_attack_ids(cls, values: list[str]) -> list[str]:
         for value in values:
-            if not re.fullmatch(r"T\\d{4}(?:\\.\\d{3})?", value):
+            if not re.fullmatch(r"T\d{4}(?:\.\d{3})?", value):
                 raise ValueError("ATT&CK technique IDs must use the Txxxx or Txxxx.xxx format")
         return values
 
