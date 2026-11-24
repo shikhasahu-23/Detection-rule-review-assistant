@@ -150,11 +150,15 @@ def list_attack_techniques(
 
 @router.post("/feeds/custom/csv")
 async def import_custom_csv(request: Request, db: Annotated[Session, Depends(get_db)]) -> dict:
-    body = await request.body()
-    if len(body) > 2_000_000:
-        raise HTTPException(status_code=413, detail="CSV import is limited to 2 MB")
+    if request.headers.get("content-type", "").split(";")[0].strip().lower() != "text/csv":
+        raise HTTPException(status_code=415, detail="Content-Type must be text/csv")
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > 2_000_000:
+            raise HTTPException(status_code=413, detail="CSV import is limited to 2 MB")
+        body.extend(chunk)
     try:
-        csv_text = body.decode("utf-8-sig")
+        csv_text = bytes(body).decode("utf-8-sig")
         return sync_custom_csv(db, csv_text)
     except UnicodeDecodeError as exc:
         raise HTTPException(status_code=400, detail="CSV must be UTF-8 encoded") from exc
