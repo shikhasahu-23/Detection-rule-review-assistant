@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.detection_intents import router as detection_intents_router
 from app.api.generation import router as generation_router
 from app.api.intelligence import router as intelligence_router
-from app.api.rule_candidates import router as rule_candidates_router
+from app.api.rule_candidates import library_router, router as rule_candidates_router
 from app.core.config import get_settings
 from app.db.base import Base
 from app.db.session import engine
@@ -38,6 +38,7 @@ app.add_middleware(
 app.include_router(intelligence_router)
 app.include_router(detection_intents_router)
 app.include_router(rule_candidates_router)
+app.include_router(library_router)
 app.include_router(generation_router)
 
 
