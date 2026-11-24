@@ -27,11 +27,14 @@ ThreatWeave brings the threat intelligence and detection engineering lifecycle t
 4. Open the frontend at `http://localhost:5173` and API docs at `http://localhost:8000/docs`.
 5. Check API health at `http://localhost:8000/health` and readiness at `http://localhost:8000/ready`.
 
-Do not commit `.env` or real API credentials. LLM keys are configured only when the generation service is implemented and the provider's data handling is approved.
+Do not commit `.env` or real API credentials. To use AI-assisted detection generation, set `OPENAI_API_KEY` and optionally `OPENAI_MODEL` in the local `.env` after reviewing the provider's data-handling terms. The Rule Generator creates draft candidates only; every candidate requires analyst review and vendor-side validation.
 
 ## Documentation
 - [Architecture](docs/ARCHITECTURE.md)
 - [Implementation plan](docs/IMPLEMENTATION_PLAN.md)
 - [Security and governance](docs/SECURITY_AND_GOVERNANCE.md)
+- [Detection intent API](docs/DETECTION_INTENTS.md)
+- [Rule candidate validation](docs/RULE_VALIDATION.md)
+- [LLM generation](docs/LLM_GENERATION.md)
 
 The product scope and implementation roadmap remain unchanged; ThreatWeave is the product name for the complete platform, not a single detection-review feature.
