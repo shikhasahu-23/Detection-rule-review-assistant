@@ -20,8 +20,8 @@ from app.models import (  # noqa: F401
     intelligence,
     pipeline,
     rule,
-    threat_graph,
     testing,
+    threat_graph,
 )
 
 settings = get_settings()
