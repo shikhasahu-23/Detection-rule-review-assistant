@@ -118,3 +118,46 @@ async def test_ingestion_quarantines_invalid_records_with_diagnostics(db):
     assert quarantined.raw_payload == {"invalid": True}
     assert "bad record" in quarantined.reason
     assert quarantined.source_id == source.id
+
+@pytest.mark.asyncio
+async def test_ingestion_rejects_source_from_another_organization(db):
+    owner = Organization(name="Owner", slug="owner")
+    other = Organization(name="Other", slug="other")
+    db.add_all([owner, other])
+    db.commit()
+    source = make_source(db, owner.id)
+
+    with pytest.raises(ValueError, match="does not belong"):
+        await run_intel_ingestion(
+            db,
+            organization_id=other.id,
+            source=source,
+            connector=FakeConnector([]),
+        )
+
+    assert db.scalar(select(IntelRecord)) is None
+
+
+@pytest.mark.asyncio
+async def test_ingestion_persists_failed_run_without_exposing_connector_error(db):
+    organization = Organization(name="Acme", slug="acme")
+    db.add(organization)
+    db.commit()
+    source = make_source(db, organization.id)
+
+    class FailingConnector(FakeConnector):
+        async def fetch(self, checkpoint=None):
+            raise RuntimeError("upstream response contained sensitive details")
+            yield {}
+
+    run = await run_intel_ingestion(
+        db,
+        organization_id=organization.id,
+        source=source,
+        connector=FailingConnector([]),
+    )
+
+    assert run.status == "failed"
+    assert run.completed_at is not None
+    assert run.error_summary == "RuntimeError: intelligence ingestion failed"
+    assert "sensitive details" not in run.error_summary
