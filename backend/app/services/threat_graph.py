@@ -7,7 +7,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.threat_graph import ThreatEntity, ThreatRelationship
+from app.models.threat_graph import ThreatEntity, ThreatEntityEvidence, ThreatRelationship
 
 ENTITY_TYPES = {
     "threat-actor": "threat_actor",
@@ -107,9 +107,31 @@ def import_stix_bundle(
                 db.add(entity)
                 created_entities += 1
             else:
-                for key, value in values.items():
-                    setattr(entity, key, value)
+                # Preserve canonical source fields; source-specific provenance is
+                # recorded separately for every importing feed.
+                for key in (
+                    "name", "description", "confidence", "revoked", "deprecated",
+                    "first_seen", "last_seen",
+                ):
+                    setattr(entity, key, values[key])
                 updated_entities += 1
+            db.flush()
+            entity_evidence = db.scalar(select(ThreatEntityEvidence).where(
+                ThreatEntityEvidence.entity_id == entity.id,
+                ThreatEntityEvidence.source_name == source_name.strip(),
+                ThreatEntityEvidence.source_reference == stix_id[:512],
+            ))
+            if entity_evidence is None:
+                db.add(ThreatEntityEvidence(
+                    entity_id=entity.id,
+                    source_name=source_name.strip(),
+                    source_reference=stix_id[:512],
+                    source_url=values["source_url"],
+                    confidence=values["confidence"],
+                ))
+            else:
+                entity_evidence.source_url = values["source_url"]
+                entity_evidence.confidence = values["confidence"]
             stix_to_entity[stix_id] = entity
 
         db.flush()
