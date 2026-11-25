@@ -461,24 +461,31 @@ function App() {
           {!loadingOpportunities && opportunities.length===0&&<p className="no-data">No evidence-backed detection opportunities yet. Import or sync intelligence and create detection intents with matching ATT&amp;CK IDs or CVE evidence references.</p>}
         </section>
       </> : page === "Rule generator" ? <>
-        <section className="banner"><Sparkles/><div><b>AI-assisted detection generation</b><p>Describe behavior once, then create platform-specific draft candidates. Generated queries require analyst review.</p></div><span>HUMAN REVIEW</span></section>
+        <section className="banner"><Sparkles/><div><b>Free template-based rule generation</b><p>No API key or paid AI service needed. Describe the behavior and use analyst-supplied telemetry fields to build a transparent starting query.</p></div><span>NO API COST</span></section>
+        <section className="panel" style={{marginTop:16,padding:15}}>
+          <b>Quick guide</b>
+          <p className="muted" style={{marginTop:7}}>1. Create a detection intent. 2. Add the telemetry fields your logs actually contain. 3. Select a supported platform and generate. 4. Review the query, warnings and offline tests before using it.</p>
+          <p className="muted" style={{marginTop:7}}>Free templates currently support Splunk SPL, Microsoft Sentinel KQL and Chronicle YARA-L. CrowdStrike query generation is disabled until its grammar can be verified. Templates are starting points, not AI-generated or production-validated detections.</p>
+        </section>
         <section className="columns">
           <article className="panel"><div className="panelhead"><div><b>Create detection intent</b><p>Define behavior and telemetry before generating queries.</p></div></div>
             <div className="intent-form">
               <label>DETECTION NAME</label><input value={intentTitle} onChange={e=>setIntentTitle(e.target.value)} placeholder="e.g. Suspicious PowerShell download"/>
               <label>DESCRIPTION</label><textarea value={intentDescription} onChange={e=>setIntentDescription(e.target.value)} placeholder="What activity should this detection identify?"/>
               <label>BEHAVIOR DETAILS</label><textarea value={intentBehavior} onChange={e=>setIntentBehavior(e.target.value)} placeholder="Describe the attacker behavior, sequence and expected signals."/>
+              <small className="muted">Tip: mention known behaviors or tools (for example PowerShell, certutil or encoded commands) to make the free templates more specific.</small>
               <label>MITRE ATT&CK TECHNIQUE IDS (OPTIONAL)</label><input value={attackTechniqueIds} onChange={e=>setAttackTechniqueIds(e.target.value)} placeholder="T1059.001, T1105"/>
-              <label>TARGET PLATFORMS</label><div className="platform-options">{["splunk","sentinel","chronicle","crowdstrike"].map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform}</label>)}</div>
+              <label>TARGET PLATFORMS</label><div className="platform-options">{["splunk","sentinel","chronicle"].map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform}</label>)}</div>
+              <small className="muted">CrowdStrike is temporarily unavailable in free mode because its query grammar is not verified.</small>
               <button className="primary-action" disabled={creatingIntent||intentTitle.length<3||intentDescription.length<10||intentBehavior.length<10||targetPlatforms.length===0} onClick={createIntent}>{creatingIntent?"Saving intent…":"Save detection intent"}</button>
             </div>
           </article>
-          <article className="panel"><div className="panelhead"><div><b>Generate candidates</b><p>Use the configured OpenAI provider to draft queries.</p></div></div>
+          <article className="panel"><div className="panelhead"><div><b>Generate candidates</b><p>Build drafts locally from free, deterministic platform templates.</p></div></div>
             <div className="intent-form">
               <label>SAVED DETECTION INTENT</label><select value={selectedIntentId} onChange={e=>{const id=e.target.value;setSelectedIntentId(id);const found=intents.find(x=>x.id===id);if(found)setTargetPlatforms(found.target_platforms);}}><option value="">Select a detection intent</option>{intents.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select>
               <label>PLATFORMS TO GENERATE</label><div className="platform-options">{(selectedIntent?.target_platforms ?? []).map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform}</label>)}</div>
               <button className="primary-action" disabled={generating||!selectedIntentId||targetPlatforms.length===0} onClick={generateRules}><Sparkles size={15}/>{generating?"Generating…":"Generate detection candidates"}</button>
-              <p className="muted">Requires OPENAI_API_KEY on the backend. Generation never approves or deploys a rule.</p>
+              <p className="muted">No OPENAI_API_KEY required. Generation is deterministic and free. Candidates remain unapproved and non-deployable.</p>
             </div>
           </article>
         </section>
@@ -536,7 +543,7 @@ function App() {
         <section className="banner"><Activity/><div><b>Your workspace is ready for detection engineering</b><p>Start by ingesting trusted intelligence. Rule generation and approval workflows will build on this foundation.</p></div><span>PHASE 2</span></section>
         <section className="stats">{stats.map(({label,value,note,icon:Icon})=><article key={label}><div>{label}<Icon size={18}/></div><strong>{loading ? "…" : value.toLocaleString?.() ?? value}</strong><small>{note}</small></article>)}</section>
         <section className="columns"><article className="panel"><div className="panelhead"><div><b>Core workflow</b><p>Build the intelligence-to-detection pipeline.</p></div></div>
-          {[{title:"Ingest threat intelligence",desc:"CISA KEV connector is available in Threat Intelligence.",icon:Radar},{title:"Enrich and correlate",desc:"Normalize evidence and map relationships and ATT&CK techniques.",icon:Database},{title:"Generate detection candidates",desc:"Create platform-specific detections with an AI provider.",icon:Sparkles},{title:"Validate and review",desc:"Run deterministic checks and require human approval.",icon:ShieldCheck}].map(({title,desc,icon:Icon})=><div className="step" key={title}><Icon/><div><b>{title}</b><small>{desc}</small></div><label>ROADMAP</label><ChevronRight size={15}/></div>)}
+          {[{title:"Ingest threat intelligence",desc:"CISA KEV connector is available in Threat Intelligence.",icon:Radar},{title:"Enrich and correlate",desc:"Normalize evidence and map relationships and ATT&CK techniques.",icon:Database},{title:"Generate detection candidates",desc:"Build free platform-specific drafts from analyst-supplied fields and templates.",icon:Sparkles},{title:"Validate and review",desc:"Run deterministic checks and require human approval.",icon:ShieldCheck}].map(({title,desc,icon:Icon})=><div className="step" key={title}><Icon/><div><b>{title}</b><small>{desc}</small></div><label>ROADMAP</label><ChevronRight size={15}/></div>)}
         </article><article className="panel activity"><div className="panelhead"><div><b>Latest intelligence run</b><p>Most recent feed execution</p></div><ArrowUpRight/></div><div className="empty"><CheckCircle2/><b>{summary?.latest_run ? summary.latest_run.status : "Waiting for first sync"}</b><p>{summary?.latest_run ? `${summary.latest_run.records_seen} records checked from ${summary.latest_run.source}.` : "Open Threat Intelligence and run the CISA KEV connector to start."}</p><button onClick={() => setPage("Threat intelligence")}>Open Intelligence Center</button></div></article></section>
       </>}
       <div className="footnote"><AlertTriangle size={15}/> Intelligence feed content is treated as untrusted evidence. Generated detections remain candidates until validated and approved; production deployment is disabled.</div>
