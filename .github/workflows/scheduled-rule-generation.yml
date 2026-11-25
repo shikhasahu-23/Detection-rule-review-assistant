@@ -5,8 +5,8 @@ on:
     paths:
       - ".github/workflows/scheduled-rule-generation.yml"
   schedule:
-    # Weekly at 08:00 IST (02:30 UTC).
-    - cron: "30 2 * * 1"
+    # Daily at 08:00 IST (02:30 UTC). All configured intelligence sources sync in this run.
+    - cron: "30 2 * * *"
   workflow_dispatch:
 
 permissions:
