@@ -297,7 +297,7 @@ def get_threat_graph(
     return {
         "nodes": [{
             "id": str(row.id), "entity_type": row.entity_type,
-            "external_id": row.external_id, "name": row.name,
+            "external_id": row.external_id, "name": row.name, "description": row.description,
             "confidence": row.confidence, "source_name": row.source_name,
             "source_reference": row.source_reference, "source_url": row.source_url,
             "revoked": row.revoked, "deprecated": row.deprecated,
