@@ -52,7 +52,7 @@ CONTRACTS = {
         ),
         validation_scope="required section and delimiter checks; compile against Chronicle UDM",
     ),
-    TargetPlatform.CROWDSTRIKE: PlatformContract(
+    TargetPlatform.SIGMA: PlatformContract(\n        platform=TargetPlatform.SIGMA,\n        prompt_version="sigma-v1",\n        instructions="Output a single native Sigma YAML detection rule with title, id, status, logsource, detection and condition.",\n        validation_scope="YAML parse and required Sigma structure; backend field mappings require target-specific validation",\n    ),\n    TargetPlatform.CROWDSTRIKE: PlatformContract(
         platform=TargetPlatform.CROWDSTRIKE,
         prompt_version="crowdstrike-cautious-v1",
         instructions=(
