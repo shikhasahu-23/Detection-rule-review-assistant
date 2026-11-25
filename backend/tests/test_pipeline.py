@@ -22,6 +22,9 @@ def make_session():
 
 
 class FakeProvider:
+    provider_name = "test-provider"
+    model = "test-v1"
+
     def __init__(self):
         self.calls = 0
 
@@ -65,7 +68,8 @@ def test_pipeline_runs_enrichment_correlation_and_creates_unapproved_candidate()
     assert provider.calls == 1
     assert candidate.intent_id == intent.id
     assert candidate.status == "candidate"
-    assert candidate.generator == "pipeline"
+    assert candidate.generator == "test-provider"
+    assert candidate.generation_metadata["provider"] == "test-provider"
     assert candidate.validation_report["is_deployable"] is False
     assert run.completed_at is not None
     assert run.stage_results["feed_ingestion"]["status"] == "skipped"
