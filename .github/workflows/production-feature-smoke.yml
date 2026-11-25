@@ -1,6 +1,10 @@
 name: Production feature smoke tests
 
 on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/production-feature-smoke.yml"
   workflow_dispatch:
 
 permissions:
