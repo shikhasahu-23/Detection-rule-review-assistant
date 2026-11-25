@@ -102,7 +102,7 @@ jobs:
           with urllib.request.urlopen(request, timeout=90) as response:
               bundle = json.loads(response.read(100_000_000).decode("utf-8"))
 
-          supported = {"malware", "tool", "infrastructure", "vulnerability"}
+          supported = {"threat-actor", "malware", "campaign", "tool", "infrastructure", "vulnerability"}
           entities = [obj for obj in bundle.get("objects", []) if isinstance(obj, dict) and obj.get("type") in supported and isinstance(obj.get("id"), str) and isinstance(obj.get("name"), str)]
           by_id = {obj["id"]: obj for obj in entities}
           relationships = [obj for obj in bundle.get("objects", []) if isinstance(obj, dict) and obj.get("type") == "relationship" and obj.get("source_ref") in by_id and obj.get("target_ref") in by_id]
