@@ -14,6 +14,7 @@ from app.models.pipeline import PipelineRun
 from app.models.threat_graph import ThreatEntity, ThreatEntityEvidence, ThreatRelationship
 from app.services.cisa_kev import sync_cisa_kev
 from app.services.custom_csv import sync_custom_csv
+from app.services.cyber_news import get_cyber_news
 from app.services.enrichment import detection_opportunities, enrich_indicator
 from app.services.mitre_attack import sync_attack_catalog
 from app.services.nvd import sync_nvd_cves
@@ -80,6 +81,12 @@ def sync_sslbl_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=500, detail="SSLBL feed ingestion failed") from exc
+
+
+@router.get("/cyber-news")
+def list_cyber_news(limit: int = Query(default=60, ge=1, le=100)) -> dict:
+    """Fetch recent cyber security headlines from public RSS feeds."""
+    return get_cyber_news(limit=limit)
 
 
 @router.get("/summary")
