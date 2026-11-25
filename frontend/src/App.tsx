@@ -166,7 +166,18 @@ function App() {
       if (currentId) {
         const rulesResponse = await fetch(`${API}/api/v1/detection-intents/${currentId}/candidates`);
         if (!rulesResponse.ok) throw new Error("Unable to load rule candidates.");
-        setCandidates(await rulesResponse.json());
+        const loadedCandidates: RuleCandidate[] = await rulesResponse.json();
+        setCandidates(loadedCandidates);
+        const history = await Promise.all(loadedCandidates.slice(0, 20).map(async candidate => {
+          const response = await fetch(`${API}/api/v1/rules/${candidate.id}/test-runs`);
+          if (!response.ok) return null;
+          const runs: TestRun[] = await response.json();
+          return runs.length ? [candidate.id, runs[0]] as const : null;
+        }));
+        setTestRuns(current => ({
+          ...current,
+          ...Object.fromEntries(history.filter((item): item is readonly [string, TestRun] => item !== null)),
+        }));
       } else setCandidates([]);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load detection engineering data.");
