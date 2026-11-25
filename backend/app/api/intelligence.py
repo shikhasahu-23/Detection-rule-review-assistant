@@ -17,7 +17,6 @@ from app.services.custom_csv import sync_custom_csv
 from app.services.enrichment import detection_opportunities, enrich_indicator
 from app.services.mitre_attack import sync_attack_catalog
 from app.services.nvd import sync_nvd_cves
-from app.services.public_feeds import sync_public_feed
 from app.services.threat_graph import ENTITY_TYPES, import_stix_bundle
 from app.tasks.pipeline import execute_pipeline
 
@@ -40,6 +39,46 @@ class IndicatorOut(BaseModel):
     description: str | None
     tags: list
     created_at: datetime
+
+
+@router.post("/feeds/urlhaus/sync")
+def sync_urlhaus_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
+    try:
+        return sync_public_feed(db, "urlhaus")
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="URLhaus feed ingestion failed") from exc
+
+
+@router.post("/feeds/feodo/sync")
+def sync_feodo_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
+    try:
+        return sync_public_feed(db, "feodo")
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="Feodo Tracker feed ingestion failed") from exc
+
+
+@router.post("/feeds/openphish/sync")
+def sync_openphish_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
+    try:
+        return sync_public_feed(db, "openphish")
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="OpenPhish feed ingestion failed") from exc
+
+
+@router.post("/feeds/sslbl/sync")
+def sync_sslbl_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
+    try:
+        return sync_public_feed(db, "sslbl")
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail="SSLBL feed ingestion failed") from exc
 
 
 @router.get("/summary")
