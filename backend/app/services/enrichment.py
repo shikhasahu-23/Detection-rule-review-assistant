@@ -140,7 +140,7 @@ def enrich_indicator(db: Session, indicator_id: UUID) -> dict | None:
 def detection_opportunities(db: Session, limit: int = 100) -> list[dict]:
     indicators = db.scalars(
         select(Indicator).where(Indicator.status == "active")
-        .order_by(desc(Indicator.created_at)).limit(5000)
+        .order_by(desc(Indicator.created_at)).limit(1000)
     ).all()
     opportunities: dict[str, dict] = {}
     for indicator in indicators:
