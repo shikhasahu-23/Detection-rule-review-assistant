@@ -12,6 +12,7 @@ from app.api.rule_candidates import router as rule_candidates_router
 from app.api.testing import router as testing_router
 from app.core.config import get_settings
 from app.db.base import Base
+from app.db.compat import ensure_threat_graph_schema
 from app.db.session import engine
 from app.models import (  # noqa: F401
     attack,
@@ -30,8 +31,10 @@ settings = get_settings()
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    # Development bootstrap only; production uses reviewed Alembic migrations.
+    # Create missing tables, then apply the small additive compatibility migration
+    # needed by databases that were created before the current threat graph model.
     Base.metadata.create_all(bind=engine)
+    ensure_threat_graph_schema(engine)
     yield
 
 
