@@ -120,8 +120,9 @@ jobs:
               json.dump({"type":"bundle","spec_version":"2.1","id":"bundle--00000000-0000-4000-8000-000000000001","objects":objects}, handle)
           print(f"Selected {len(selected_nodes)} official entities and {len(selected_relationships)} source relationships")
           PY
+          jq --arg source_name "MITRE ATT&CK Enterprise" '. + {source_name: $source_name}' /tmp/mitre-graph.json > /tmp/stix-import.json
           curl --fail --silent --show-error --retry 3 --retry-delay 5 -H "Content-Type: application/json" \
-            --data-binary @/tmp/mitre-graph.json \
+            --data-binary @/tmp/stix-import.json \
             "${BASE}/api/v1/intelligence/feeds/custom/stix" -o /tmp/stix-result.json
           jq -e '.entities_created + .entities_updated > 0' /tmp/stix-result.json >/dev/null
           echo "PASS STIX import: $(jq -r '.entities_created' /tmp/stix-result.json) new entities, $(jq -r '.relationships_created' /tmp/stix-result.json) new relationships"
