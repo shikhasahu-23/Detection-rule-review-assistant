@@ -17,7 +17,13 @@ class Settings(BaseSettings):
 
     @property
     def allowed_origins(self) -> list[str]:
-        return [item.strip() for item in self.cors_origins.split(",") if item.strip()]
+        configured = [item.strip() for item in self.cors_origins.split(",") if item.strip()]
+        # The production frontend is hosted on GitHub Pages; keep it allowed even
+        # when Render's CORS_ORIGINS environment variable contains other origins.
+        production_frontend = "https://shikhasahu-23.github.io"
+        if production_frontend not in configured:
+            configured.append(production_frontend)
+        return configured
 
 
 @lru_cache
