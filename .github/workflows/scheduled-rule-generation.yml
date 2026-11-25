@@ -1,6 +1,9 @@
 name: Scheduled rule generation
 
 on:
+  push:
+    paths:
+      - ".github/workflows/scheduled-rule-generation.yml"
   schedule:
     # Weekly at 08:00 IST (02:30 UTC).
     - cron: "30 2 * * 1"
