@@ -9,7 +9,7 @@ class TargetPlatform(StrEnum):
     SPLUNK = "splunk"
     CHRONICLE = "chronicle"
     SENTINEL = "sentinel"
-    CROWDSTRIKE = "crowdstrike"
+    CROWDSTRIKE = "crowdstrike"\n    SIGMA = "sigma"
 
 
 class TelemetryRequirement(BaseModel):
@@ -34,7 +34,7 @@ class DetectionIntentCreate(BaseModel):
     required_telemetry: list[TelemetryRequirement] = Field(min_length=1, max_length=30)
     evidence: list[EvidenceReference] = Field(default_factory=list, max_length=100)
     test_scenarios: list[str] = Field(default_factory=list, max_length=30)
-    target_platforms: list[TargetPlatform] = Field(min_length=1, max_length=4)
+    target_platforms: list[TargetPlatform] = Field(min_length=1, max_length=5)
 
     @field_validator("attack_techniques")
     @classmethod
