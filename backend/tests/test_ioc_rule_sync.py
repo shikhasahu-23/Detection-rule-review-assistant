@@ -5,7 +5,7 @@ from sqlalchemy.pool import StaticPool
 from app.db.base import Base
 from app.models.intelligence import Indicator
 from app.models.rule import RuleCandidate
-from app.services.ioc_rule_sync import sync_ioc_rules
+from app.schemas.detection import TargetPlatform\nfrom app.services.generation import TemplateGenerationProvider\nfrom app.services.validation import validate_candidate\nfrom app.services.ioc_rule_sync import sync_ioc_rules
 
 
 def make_session():
@@ -51,3 +51,26 @@ def test_new_active_ioc_creates_new_versions_without_overwriting_history():
     assert [item.version for item in versions] == [1, 2]
     assert "198.51.100.20" not in versions[0].query
     assert "198.51.100.20" in versions[1].query
+
+
+def test_sigma_yaml_and_cve_rules_are_generated_for_supported_formats():
+    provider = TemplateGenerationProvider()
+    intent = {
+        "title": "Active CVE coverage",
+        "description": "Detect vulnerable software",
+        "behavior": "Match active CVE identifiers",
+        "required_telemetry": [{"source": "vulnerability", "required_fields": ["indicator_value"]}],
+        "indicator_type": "cve",
+        "indicator_values": ["CVE-2025-12345", "CVE-2026-98765"],
+    }
+    sigma = provider.generate(intent, TargetPlatform.SIGMA)
+    report = validate_candidate(TargetPlatform.SIGMA, sigma.query, intent)
+    assert not report["errors"]
+    assert "CVE-2025-12345" in sigma.query
+
+    splunk = provider.generate(intent, TargetPlatform.SPLUNK)
+    sentinel = provider.generate(intent, TargetPlatform.SENTINEL)
+    chronicle = provider.generate(intent, TargetPlatform.CHRONICLE)
+    assert "CVE-2025-12345" in splunk.query
+    assert "DeviceTvmSoftwareVulnerabilities" in sentinel.query
+    assert "$e.vulnerability.cve_id" in chronicle.query
