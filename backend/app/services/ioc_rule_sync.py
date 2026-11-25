@@ -104,6 +104,8 @@ def sync_ioc_rules(db: Session, *, provider=None, indicator_limit: int = 5000) -
                     RuleCandidate.intent_id == intent.id,
                     RuleCandidate.platform == platform.value,
                 )) or 0
+                if latest is not None:
+                    latest.status = "superseded"
                 db.add(RuleCandidate(
                     intent_id=intent.id,
                     name=draft.name,
