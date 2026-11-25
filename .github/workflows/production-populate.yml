@@ -1,12 +1,6 @@
 name: Populate production workspace
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - ".github/workflows/production-populate.yml"
-      - "backend/**"
-      - "frontend/src/App.tsx"
   workflow_dispatch:
 
 permissions:
