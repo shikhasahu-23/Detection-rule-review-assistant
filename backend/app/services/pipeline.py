@@ -202,8 +202,11 @@ def run_intelligence_pipeline(
                         f"{intent.id}/{platform.value}: {type(exc).__name__}: {str(exc)[:300]}"
                     )
         db.commit()
-        run.candidates_created = created
-        run.candidates_skipped = skipped
+        ioc_stage = stage_results.get("ioc_rule_sync", {})
+        ioc_created = int(ioc_stage.get("rule_versions_created", 0))
+        ioc_skipped = int(ioc_stage.get("unchanged_platform_rules_skipped", 0))
+        run.candidates_created = created + ioc_created
+        run.candidates_skipped = skipped + ioc_skipped
         stage_results["candidate_generation"] = {
             "provider": provider_name,
             "model": provider_model,
