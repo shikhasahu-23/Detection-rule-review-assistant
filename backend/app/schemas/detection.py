@@ -9,7 +9,8 @@ class TargetPlatform(StrEnum):
     SPLUNK = "splunk"
     CHRONICLE = "chronicle"
     SENTINEL = "sentinel"
-    CROWDSTRIKE = "crowdstrike"\n    SIGMA = "sigma"
+    CROWDSTRIKE = "crowdstrike"
+    SIGMA = "sigma"
 
 
 class TelemetryRequirement(BaseModel):
