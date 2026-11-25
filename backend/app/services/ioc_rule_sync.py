@@ -24,6 +24,24 @@ IOC_PLATFORMS = [
     TargetPlatform.SIGMA,
 ]
 IOC_CHUNK_SIZE = 100
+IOC_CHUNK_CHAR_BUDGET = 12000
+
+
+def _chunk_values(values: list[str]) -> list[list[str]]:
+    chunks: list[list[str]] = []
+    current: list[str] = []
+    size = 0
+    for value in values:
+        cost = len(value) + 128
+        if current and (len(current) >= IOC_CHUNK_SIZE or size + cost > IOC_CHUNK_CHAR_BUDGET):
+            chunks.append(current)
+            current = []
+            size = 0
+        current.append(value)
+        size += cost
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 def _sync_chunk(db: Session, provider, kind: str, values: list[str], rows: list[Indicator], chunk_number: int) -> tuple[int, int, int, list[str]]:
@@ -176,9 +194,8 @@ def sync_ioc_rules(db: Session, *, provider=None, indicator_limit: int = 50000) 
     for kind, rows in groups.items():
         values = sorted({row.value.strip() for row in rows})
         chunk_count = 0
-        for offset in range(0, len(values), IOC_CHUNK_SIZE):
+        for chunk_values in _chunk_values(values):
             chunk_count += 1
-            chunk_values = values[offset:offset + IOC_CHUNK_SIZE]
             chunk_key = f"{kind}:{chunk_count:04d}"
             active_chunks.add(chunk_key)
             new_count, skip_count, fail_count, chunk_errors = _sync_chunk(
@@ -221,6 +238,7 @@ def sync_ioc_rules(db: Session, *, provider=None, indicator_limit: int = 50000) 
         "errors": errors[:50],
         "indicator_limit": indicator_limit,
         "batch_size": IOC_CHUNK_SIZE,
+        "batch_character_budget": IOC_CHUNK_CHAR_BUDGET,
         "unsupported_indicator_types": unsupported,
         "note": "IOC coverage rules are versioned drafts; deployment is never automatic.",
     }
