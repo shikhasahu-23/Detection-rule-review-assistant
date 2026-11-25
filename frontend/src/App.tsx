@@ -555,14 +555,14 @@ function App() {
               <label>BEHAVIOR DETAILS</label><textarea value={intentBehavior} onChange={e=>setIntentBehavior(e.target.value)} placeholder="Describe the attacker behavior, sequence and expected signals."/>
               <small className="muted">Tip: mention known behaviors or tools (for example PowerShell, certutil or encoded commands) to make the free templates more specific.</small>
               <label>MITRE ATT&CK TECHNIQUE IDS (OPTIONAL)</label><input value={attackTechniqueIds} onChange={e=>setAttackTechniqueIds(e.target.value)} placeholder="T1059.001, T1105"/>
-              <label>QUERY LANGUAGES</label><div className="platform-options">{["splunk","sentinel","chronicle"].map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform==="sentinel"?"Microsoft Sentinel KQL":platform==="chronicle"?"Google SecOps YARA-L":"Splunk SPL"}</label>)}</div>
+              <label>QUERY LANGUAGES</label><div className="platform-options">{["splunk","sentinel","chronicle","sigma"].map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform==="sentinel"?"Microsoft Sentinel KQL":platform==="chronicle"?"Google SecOps YARA-L":platform==="sigma"?"Sigma YAML":"Splunk SPL"}</label>)}</div>
               <button className="primary-action" disabled={creatingIntent||intentTitle.length<3||intentDescription.length<10||intentBehavior.length<10||targetPlatforms.length===0} onClick={createIntent}>{creatingIntent?"Saving intent…":"Save detection intent"}</button>
             </div>
           </article>
           <article className="panel"><div className="panelhead"><div><b>Generate candidates</b><p>Build drafts locally from free, deterministic platform templates.</p></div></div>
             <div className="intent-form">
               <label>SAVED DETECTION INTENT</label><select value={selectedIntentId} onChange={e=>{const id=e.target.value;setSelectedIntentId(id);const found=intents.find(x=>x.id===id);if(found)setTargetPlatforms(found.target_platforms);}}><option value="">Select a detection intent</option>{intents.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select>
-              <label>GENERATE QUERIES FOR</label><div className="platform-options">{["splunk","sentinel","chronicle"].map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform==="sentinel"?"Sentinel KQL":platform==="chronicle"?"Chronicle YARA-L":"Splunk SPL"}</label>)}</div>
+              <label>GENERATE QUERIES FOR</label><div className="platform-options">{["splunk","sentinel","chronicle","sigma"].map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform==="sentinel"?"Sentinel KQL":platform==="chronicle"?"Chronicle YARA-L":"Splunk SPL"}</label>)}</div>
               <button className="primary-action" disabled={generating||!selectedIntentId||targetPlatforms.length===0} onClick={generateRules}><Sparkles size={15}/>{generating?"Generating…":"Generate queries"}</button>
               <p className="muted">One click generates all selected languages. No review queue or approval workflow.</p>
             </div>
@@ -582,7 +582,7 @@ function App() {
           <div className="library-filters">
             <select value={libraryTactic} onChange={e=>setLibraryTactic(e.target.value)}><option value="">All tactics</option>{[...new Set(attackTechniques.flatMap(x=>x.tactics))].sort().map(t=><option key={t} value={t}>{t.replaceAll("_"," ")}</option>)}</select>
             <select value={libraryTechnique} onChange={e=>setLibraryTechnique(e.target.value)}><option value="">All techniques</option>{[...new Set(intents.flatMap(x=>x.attack_techniques||[]))].sort().map(t=><option key={t} value={t}>{t}</option>)}</select>
-            <select value={libraryPlatform} onChange={e=>{setLibraryPlatform(e.target.value);setLibraryOffset(0);}}><option value="">All platforms</option>{["splunk","sentinel","chronicle","crowdstrike"].map(p=><option key={p} value={p}>{p.toUpperCase()}</option>)}</select>
+            <select value={libraryPlatform} onChange={e=>{setLibraryPlatform(e.target.value);setLibraryOffset(0);}}><option value="">All platforms</option>{["splunk","sentinel","chronicle","sigma","crowdstrike"].map(p=><option key={p} value={p}>{p==="sigma"?"SIGMA YAML":p.toUpperCase()}</option>)}</select>
             
             <button onClick={()=>void loadRuleLibrary()}><RefreshCw size={15}/> Refresh</button>
           </div>
