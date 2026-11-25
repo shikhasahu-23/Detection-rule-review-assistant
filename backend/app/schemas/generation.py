@@ -4,7 +4,7 @@ from app.schemas.detection import TargetPlatform
 
 
 class GenerationRequest(BaseModel):
-    target_platforms: list[TargetPlatform] | None = Field(default=None, min_length=1, max_length=4)
+    target_platforms: list[TargetPlatform] | None = Field(default=None, min_length=1, max_length=5)
 
 
 class GeneratedRule(BaseModel):
