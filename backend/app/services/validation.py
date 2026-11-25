@@ -14,7 +14,7 @@ def _balanced_delimiters(query: str) -> bool:
         if quote:
             if escaped:
                 escaped = False
-            elif char == "\\\\":
+            elif char == "\\":
                 escaped = True
             elif char == quote:
                 quote = None
@@ -35,9 +35,9 @@ def validate_candidate(platform: TargetPlatform, query: str, intent: dict | None
     lowered = normalized.lower()
     if not normalized:
         errors.append({"code": "EMPTY_QUERY", "message": "Query cannot be empty."})
-    if "\\x00" in normalized:
+    if "\x00" in normalized:
         errors.append({"code": "NULL_BYTE", "message": "Query contains a null byte."})
-    if normalized.startswith("\\x60\\x60\\x60") or normalized.endswith("\\x60\\x60\\x60"):
+    if normalized.startswith("```") or normalized.endswith("```"):
         errors.append({"code": "MARKDOWN_FENCE", "message": "Remove Markdown fences; store only the native query."})
     if any(token in lowered for token in ("<insert ", "todo:", "your query here", "replace_me")):
         errors.append({"code": "PLACEHOLDER", "message": "Query contains an unresolved placeholder."})
