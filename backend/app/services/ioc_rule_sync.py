@@ -142,6 +142,16 @@ def sync_ioc_rules(db: Session, *, provider=None, indicator_limit: int = 5000) -
                 failed += 1
                 errors.append(f"{kind}/{platform.value}: {type(exc).__name__}: {str(exc)[:250]}")
         processed[kind] = {"active_indicators": len(values)}
+    stale_intents = db.scalars(select(DetectionIntent).where(DetectionIntent.title.like("ThreatWeave Active IOC Coverage:%"), DetectionIntent.status == "active")).all()
+    active_types = set(groups)
+    for stale_intent in stale_intents:
+        stale_type = stale_intent.title.rsplit(":", 1)[-1].strip()
+        if stale_type not in active_types:
+            stale_intent.status = "inactive"
+            old_rules = db.scalars(select(RuleCandidate).where(RuleCandidate.intent_id == stale_intent.id, RuleCandidate.generator == "ioc-intel", RuleCandidate.status == "candidate")).all()
+            for old_rule in old_rules:
+                old_rule.status = "stale"
+    db.commit()
     return {
         "status": "partial" if failed else "succeeded",
         "indicator_types_processed": processed,
