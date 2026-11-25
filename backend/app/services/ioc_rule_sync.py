@@ -5,7 +5,7 @@ import hashlib
 import json
 from datetime import UTC, datetime
 
-from sqlalchemy import desc, func, select
+from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.detection import DetectionIntent
@@ -16,7 +16,7 @@ from app.services.generation import GenerationUnavailable, get_generation_provid
 from app.services.platforms import get_platform_contract
 from app.services.validation import validate_candidate
 
-SUPPORTED_IOC_TYPES = {"ip", "domain", "url", "hash", "file_hash", "cve"}
+SUPPORTED_IOC_TYPES = {"ip", "ipv4", "ipv6", "domain", "hostname", "url", "hash", "file_hash", "cve"}
 IOC_PLATFORMS = [
     TargetPlatform.SPLUNK, TargetPlatform.SENTINEL,
     TargetPlatform.CHRONICLE, TargetPlatform.SIGMA,
@@ -27,7 +27,7 @@ def sync_ioc_rules(db: Session, *, provider=None, indicator_limit: int = 5000) -
     """Generate grouped rules and append a version only when the active IOC set changes."""
     active_provider = provider or get_generation_provider()
     indicators = db.scalars(
-        select(Indicator).where(Indicator.status == "active")
+        select(Indicator).where(Indicator.status == "active", or_(Indicator.expires_at.is_(None), Indicator.expires_at > datetime.now(UTC)))
         .order_by(desc(Indicator.last_seen), desc(Indicator.created_at))
         .limit(indicator_limit)
     ).all()
