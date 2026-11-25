@@ -5,7 +5,10 @@ from sqlalchemy.pool import StaticPool
 from app.db.base import Base
 from app.models.intelligence import Indicator
 from app.models.rule import RuleCandidate
-from app.schemas.detection import TargetPlatform\nfrom app.services.generation import TemplateGenerationProvider\nfrom app.services.validation import validate_candidate\nfrom app.services.ioc_rule_sync import sync_ioc_rules
+from app.schemas.detection import TargetPlatform
+from app.services.generation import TemplateGenerationProvider
+from app.services.ioc_rule_sync import sync_ioc_rules
+from app.services.validation import validate_candidate
 
 
 def make_session():
