@@ -84,7 +84,41 @@ jobs:
           jq -e '.status == "passed" and .passed_cases == .total_cases and .failed_cases == 0' /tmp/test-result.json >/dev/null
           echo "PASS offline rule test suite: $(jq -r '.passed_cases' /tmp/test-result.json)/$(jq -r '.total_cases' /tmp/test-result.json)"
 
+          # Add a clearly labelled synthetic fixture so the Correlation page has an
+          # explainable ATT&CK match without pretending this is observed threat telemetry.
+          DEMO_TITLE="Demo: PowerShell download behavior (ATT&CK mapped)"
+          curl --fail --silent --show-error "${BASE}/api/v1/detection-intents?q=$(python -c 'import urllib.parse; print(urllib.parse.quote("Demo: PowerShell download behavior (ATT&CK mapped)"))')" -o /tmp/demo-intents.json
+          DEMO_INTENT_ID="$(jq -r --arg title "${DEMO_TITLE}" '.[] | select(.title == $title) | .id' /tmp/demo-intents.json | head -n1)"
+          if [[ -z "${DEMO_INTENT_ID}" ]]; then
+            cat > /tmp/demo-intent.json <<'JSON'
+          {
+            "title": "Demo: PowerShell download behavior (ATT&CK mapped)",
+            "description": "Demonstration detection intent used to validate exact ATT&CK evidence correlation. This is a labelled demo workflow, not a production detection claim.",
+            "behavior": "Demonstrate correlation of a synthetic endpoint indicator to explicit ATT&CK technique references for suspicious PowerShell execution and ingress tool transfer.",
+            "severity": "medium",
+            "attack_techniques": ["T1059.001", "T1105"],
+            "required_telemetry": [
+              {"source":"endpoint","description":"Synthetic process telemetry fixture","required_fields":["process_name","command_line"]}
+            ],
+            "evidence": [],
+            "test_scenarios": ["Synthetic ATT&CK evidence correlation fixture"],
+            "target_platforms": ["splunk","sentinel"]
+          }
+          JSON
+            curl --fail --silent --show-error -H "Content-Type: application/json" -d @/tmp/demo-intent.json "${BASE}/api/v1/detection-intents" -o /tmp/demo-created.json
+            DEMO_INTENT_ID="$(jq -r '.id' /tmp/demo-created.json)"
+            test -n "${DEMO_INTENT_ID}" && test "${DEMO_INTENT_ID}" != "null"
+          fi
+          cat > /tmp/demo-indicator.csv <<'CSV'
+          indicator_type,value,confidence,severity,status,description,tags,source_name,source_reference
+          domain,demo-threatweave.invalid,100,low,active,Synthetic demo fixture only; not an observed malicious domain,"T1059.001;T1105;DEMO;SYNTHETIC",ThreatWeave Demo Fixture,DEMO-ATTACK-T1059-001
+          CSV
+          curl --fail --silent --show-error -H "Content-Type: text/csv" --data-binary @/tmp/demo-indicator.csv "${BASE}/api/v1/intelligence/feeds/custom/csv" -o /tmp/demo-csv-result.json
+          jq -e '.status == "succeeded" or .status == "partial"' /tmp/demo-csv-result.json >/dev/null
+          echo "PASS created clearly labelled synthetic correlation fixture for ${DEMO_INTENT_ID}"
+
           echo "INTENT_ID=${INTENT_ID}" >> "${GITHUB_ENV}"
+          echo "CANDIDATE_ID=${CANDIDATE_ID}" >> "${GITHUB_ENV}"
           echo "CANDIDATE_ID=${CANDIDATE_ID}" >> "${GITHUB_ENV}"
 
       - name: Import source-backed MITRE ATT&CK STIX graph subset
