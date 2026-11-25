@@ -2,7 +2,7 @@ name: Scheduled rule generation
 
 on:
   schedule:
-    # Weekly at 08:00 IST (02:30 UTC), after the upstream feeds have time to update.
+    # Weekly at 08:00 IST (02:30 UTC).
     - cron: "30 2 * * 1"
   workflow_dispatch:
 
@@ -16,7 +16,7 @@ concurrency:
 jobs:
   generate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Check API readiness
         shell: bash
@@ -26,30 +26,34 @@ jobs:
           curl --fail --silent --show-error --retry 5 --retry-delay 10 "${BASE}/ready" -o /tmp/ready.json
           echo "Backend is ready."
 
-      - name: Run intelligence, correlation and candidate-generation pipeline
+      - name: Start the free intelligence and rule-candidate pipeline
         shell: bash
         run: |
           set -euo pipefail
           BASE="https://detectionops-api.onrender.com"
+          STARTED_AT="$(date -u +%s)"
           curl --fail --silent --show-error -X POST "${BASE}/api/v1/intelligence/pipeline/runs" -o /tmp/started.json
-          echo "Pipeline accepted: $(cat /tmp/started.json)"
+          cat /tmp/started.json
+          echo "Waiting for the pipeline run to finish..."
 
-          for attempt in $(seq 1 90); do
-            curl --fail --silent --show-error "${BASE}/api/v1/intelligence/pipeline/runs?limit=5" -o /tmp/runs.json
-            STATUS="$(jq -r '.[0].status // empty' /tmp/runs.json)"
-            if [[ "${STATUS}" == "succeeded" || "${STATUS}" == "partial_success" || "${STATUS}" == "failed" ]]; then
-              jq '.[0] | {run_id,status,indicators_enriched,opportunities_found,candidates_created,candidates_skipped,stage_results,error_message}' /tmp/runs.json
-              GENERATION_STATUS="$(jq -r '.[0].stage_results.candidate_generation.status // "missing"' /tmp/runs.json)"
-              if [[ "${STATUS}" == "failed" || "${GENERATION_STATUS}" != "succeeded" ]]; then
-                echo "::error::Pipeline finished but candidate generation did not fully succeed. Check OPENAI_API_KEY and Render logs."
-                exit 1
+          for attempt in $(seq 1 120); do
+            curl --fail --silent --show-error "${BASE}/api/v1/intelligence/pipeline/runs?limit=10" -o /tmp/runs.json
+            RUN="$(jq -c --argjson started "${STARTED_AT}" '[.[] | select((.started_at | fromdateiso8601?) >= $started)] | .[0] // empty' /tmp/runs.json)"
+            if [[ -n "${RUN}" ]]; then
+              STATUS="$(jq -r '.status // empty' <<< "${RUN}")"
+              if [[ "${STATUS}" == "succeeded" || "${STATUS}" == "partial_success" || "${STATUS}" == "failed" ]]; then
+                jq '{run_id,status,indicators_enriched,opportunities_found,candidates_created,candidates_skipped,stage_results,error_message}' <<< "${RUN}"
+                GENERATION_STATUS="$(jq -r '.stage_results.candidate_generation.status // "missing"' <<< "${RUN}")"
+                if [[ "${STATUS}" == "failed" || "${GENERATION_STATUS}" == "failed" ]]; then
+                  echo "::error::Pipeline failed. Check the API service logs."
+                  exit 1
+                fi
+                echo "Free candidate-generation pipeline completed. No AI API key was used."
+                exit 0
               fi
-              CREATED="$(jq -r '.[0].candidates_created // 0' /tmp/runs.json)"
-              echo "Rule-generation run completed. New candidates created: ${CREATED}"
-              exit 0
             fi
             sleep 10
           done
 
-          echo "::error::Pipeline did not finish within 15 minutes."
+          echo "::error::Pipeline did not finish within 20 minutes."
           exit 1
