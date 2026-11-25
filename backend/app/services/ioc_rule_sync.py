@@ -160,10 +160,13 @@ def sync_ioc_rules(db: Session, *, provider=None, indicator_limit: int = 50000) 
     ).all()
 
     groups: dict[str, list[Indicator]] = {}
+    unsupported: dict[str, int] = {}
     for indicator in indicators:
         kind = indicator.indicator_type.lower()
         if kind in SUPPORTED_IOC_TYPES and indicator.value.strip():
             groups.setdefault(kind, []).append(indicator)
+        elif kind not in SUPPORTED_IOC_TYPES:
+            unsupported[kind] = unsupported.get(kind, 0) + 1
 
     created = skipped = failed = 0
     errors: list[str] = []
@@ -218,5 +221,6 @@ def sync_ioc_rules(db: Session, *, provider=None, indicator_limit: int = 50000) 
         "errors": errors[:50],
         "indicator_limit": indicator_limit,
         "batch_size": IOC_CHUNK_SIZE,
+        "unsupported_indicator_types": unsupported,
         "note": "IOC coverage rules are versioned drafts; deployment is never automatic.",
     }
