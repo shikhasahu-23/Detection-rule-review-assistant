@@ -2,6 +2,9 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from redis import Redis
+from sqlalchemy import text
 
 from app.api.detection_intents import router as detection_intents_router
 from app.api.effectiveness import router as effectiveness_router
@@ -63,5 +66,27 @@ async def health() -> dict[str, str]:
 
 
 @app.get("/ready", tags=["operations"])
-async def ready() -> dict[str, str]:
-    return {"status": "ready"}
+async def ready():
+    checks = {"database": "ok", "redis": "ok"}
+
+    try:
+        with engine.connect() as connection:
+            connection.execute(text("SELECT 1"))
+    except Exception:
+        checks["database"] = "error"
+
+    redis_client = Redis.from_url(settings.redis_url, socket_connect_timeout=3, socket_timeout=3)
+    try:
+        redis_client.ping()
+    except Exception:
+        checks["redis"] = "error"
+    finally:
+        redis_client.close()
+
+    if any(status != "ok" for status in checks.values()):
+        return JSONResponse(
+            status_code=503,
+            content={"status": "not_ready", "checks": checks},
+        )
+
+    return {"status": "ready", "checks": checks}
