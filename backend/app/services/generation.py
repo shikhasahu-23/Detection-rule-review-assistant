@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import re
+import uuid
 from typing import Protocol
 
 from app.schemas.detection import TargetPlatform
@@ -70,7 +71,7 @@ def _sigma(kind: str, values: list[str], title: str) -> str:
         fields, category = {"Hashes|contains": values}, "process_creation"
     lines = [
         "title: " + json.dumps(title),
-        'id: "b6d1a8d4-5b22-4b4e-9a3e-7f8c2e5a1d90"',
+        "id: " + json.dumps(str(uuid.uuid5(uuid.NAMESPACE_URL, f"threatweave:sigma:{title}"))),
         "status: experimental",
         "description: " + json.dumps(f"Matches {len(values)} active {kind} threat-intelligence indicators."),
         "author: ThreatWeave",
@@ -98,7 +99,7 @@ def _intent_sigma(intent: dict, title: str) -> str:
                 fields[sigma_field] = "*"
     if not fields:
         raise GenerationUnavailable("Sigma generation needs supported fields such as process_name, command_line or destination_ip.")
-    lines = ["title: " + json.dumps(title), 'id: "b6d1a8d4-5b22-4b4e-9a3e-7f8c2e5a1d91"',
+    lines = ["title: " + json.dumps(title), "id: " + json.dumps(str(uuid.uuid5(uuid.NAMESPACE_URL, f"threatweave:sigma:{title}"))),
              "status: experimental", "description: " + json.dumps(str(intent.get("description", ""))[:500]),
              "author: ThreatWeave", "logsource:", "    category: process_creation",
              "detection:", "    selection:"]
@@ -140,10 +141,11 @@ def _ioc_query(kind: str, values: list[str], platform: TargetPlatform) -> str:
             return "DeviceFileEvents\n| where SHA256 in (" + ", ".join(quoted) + ") or SHA1 in (" + ", ".join(quoted) + ")\n| project Timestamp, DeviceName, FileName, FolderPath, SHA256, SHA1"
         expr = " or ".join(f"$e.target.file.sha256 = {v} or $e.target.file.md5 = {v} or $e.target.file.sha1 = {v}" for v in quoted)
     name = re.sub(r"[^a-zA-Z0-9_]", "_", "threatweave_ioc_" + kind).strip("_")
+    event_type = "SCAN_VULNERABILITY" if kind == "cve" else "NETWORK_CONNECTION"
     return (
         f"rule {name} {{\n  meta:\n    author = \"ThreatWeave\"\n"
         f'    description = "Active {kind} IOC matches; verify UDM field coverage"\n'
-        "  events:\n    $e.metadata.event_type = \"NETWORK_CONNECTION\"\n"
+        f"  events:\n    $e.metadata.event_type = \"{event_type}\"\n"
         f"    ({expr})\n  condition:\n    $e\n}}"
     )
 
