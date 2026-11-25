@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import {
   Activity, AlertTriangle, ArrowUpRight, BrainCircuit, CheckCircle2, ChevronRight,
   Database, FileSearch, Layers3, LoaderCircle, Network, Radar, RefreshCw, ShieldCheck,
-  ShieldEllipsis, Sparkles, Search
+  ShieldEllipsis, Sparkles, Search, Newspaper
 } from "lucide-react";
 
 const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
@@ -17,11 +17,13 @@ type PipelineRun = { run_id: string; status: string; trigger: string; indicators
 type ThreatNode = { id: string; entity_type: string; external_id: string; name: string; description?: string; confidence: number; source_name: string; source_reference: string; source_url: string | null; revoked: boolean; deprecated: boolean };
 type ThreatEdge = { id: string; source: string; target: string; relationship_type: string; confidence: number; assertion_status: string; source_name: string; source_reference: string; source_url: string | null };
 type ThreatGraph = { nodes: ThreatNode[]; edges: ThreatEdge[]; truncated: boolean };
+type CyberNews = { id:string; headline:string; summary:string; impact:string; severity:string; source:string; url:string; published_at:string };
 type Opportunity = { intent_id: string; title: string; severity: string; status: string; target_platforms: string[]; association_type: string; indicators: { indicator_id: string; indicator_type: string; value: string; confidence: number; severity: string; freshness: string; evidence_count: number }[]; matched_techniques: string[]; matched_cves: string[]; indicator_count: number; evidence_count: number; rationale: string };
 
 const nav = [
   { label: "Overview", icon: Layers3 },
   { label: "Threat intelligence", icon: Radar },
+  { label: "Cyber news", icon: Newspaper },
   { label: "Correlation", icon: BrainCircuit },
   { label: "Threat graph", icon: Network },
   { label: "ATT&CK catalog", icon: ShieldCheck },
@@ -32,6 +34,13 @@ const nav = [
 function App() {
   const [page, setPage] = useState("Overview");
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [cyberNews, setCyberNews] = useState<CyberNews[]>([]);
+  const [newsSeverity, setNewsSeverity] = useState("");
+  const [newsSource, setNewsSource] = useState("");
+  const [newsWindow, setNewsWindow] = useState("7d");
+  const [loadingNews, setLoadingNews] = useState(false);
+  const [newsFetchedAt, setNewsFetchedAt] = useState("");
+  const [newsErrors, setNewsErrors] = useState<string[]>([]);
   const [indicators, setIndicators] = useState<Indicator[]>([]);
   const [feeds, setFeeds] = useState<Feed[]>([]);
   const [query, setQuery] = useState("");
@@ -322,6 +331,26 @@ function App() {
     if (page === "Threat intelligence") void loadPipelineRuns();
   }, [page, loadPipelineRuns]);
 
+  const loadCyberNews = useCallback(async () => {
+    setLoadingNews(true);
+    try {
+      const response = await fetch(`${API}/api/v1/intelligence/cyber-news?limit=100`);
+      if (!response.ok) throw new Error("Unable to load cyber news.");
+      const body = await response.json();
+      setCyberNews(body.items || []);
+      setNewsFetchedAt(body.fetched_at || "");
+      setNewsErrors(body.sources_failed || []);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to load cyber news.");
+    } finally {
+      setLoadingNews(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (page === "Cyber news") void loadCyberNews();
+  }, [page, loadCyberNews]);
+
   const startPipeline = async () => {
     setPipelineQueued(true); setError(""); setNotice("");
     try {
@@ -417,13 +446,39 @@ function App() {
     <main>
       <header><span>Workspace　›　<b>{page}</b></span><small><span className="live-dot"/> PRODUCTION</small></header>
       <section className="heading">
-        <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>{page === "Threat intelligence" ? "Threat Intelligence Center" : page === "ATT&CK catalog" ? "MITRE ATT&CK Catalog" : page === "Rule generator" ? "Detection Rule Generator" : page === "Correlation" ? "Intelligence Correlation" : page === "Threat graph" ? "Threat Entity Graph" : "Good morning, team 👋"}</h1><p>Monitor threat intelligence, preserve source evidence, and prepare trusted inputs for detection engineering.</p></div>
+        <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>{page === "Threat intelligence" ? "Threat Intelligence Center" : page === "ATT&CK catalog" ? "MITRE ATT&CK Catalog" : page === "Rule generator" ? "Detection Rule Generator" : page === "Correlation" ? "Intelligence Correlation" : page === "Threat graph" ? "Threat Entity Graph" : page === "Cyber news" ? "Cyber News & Security Briefing" : "Good morning, team 👋"}</h1><p>Monitor threat intelligence, preserve source evidence, and prepare trusted inputs for detection engineering.</p></div>
         {page === "Threat intelligence" && <div className="feed-actions"><button onClick={startPipeline} disabled={pipelineQueued}><Network size={16} className={pipelineQueued ? "spin" : ""}/>{pipelineQueued ? "Queueing…" : "Run full pipeline"}</button><button onClick={syncCisa} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncing ? "spin" : ""}/>{syncing ? "Syncing CISA…" : "Sync CISA KEV"}</button><button onClick={syncNvd} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncingNvd ? "spin" : ""}/>{syncingNvd ? "Syncing NVD…" : "Sync NVD CVEs"}</button><label className="upload-button">{uploadingCsv?"Importing CSV…":"Import CSV"}<input type="file" accept=".csv,text/csv" disabled={uploadingCsv} onChange={e=>{const input=e.currentTarget;const file=input.files?.[0];input.value="";if(file)void importCsv(file);}}/></label></div>}
         {page === "ATT&CK catalog" && <button onClick={syncAttack} disabled={syncingAttack}><RefreshCw size={16} className={syncingAttack ? "spin" : ""}/>{syncingAttack ? "Syncing catalog…" : "Sync ATT&CK"}</button>}
       </section>
       {error && <div className="notice error"><AlertTriangle size={16}/>{error}<button onClick={loadData}>Retry</button></div>}
       {notice && <div className="notice success"><CheckCircle2 size={16}/>{notice}</div>}
-      {page === "Threat intelligence" ? <>
+      {page === "Cyber news" ? <>
+        <section className="banner"><Newspaper/><div><b>Cybersecurity headlines from trusted public sources</b><p>Short summaries, practical impact and severity labels to help you scan what matters.</p></div><span>LIVE FEED</span></section>
+        <section className="panel intel-panel">
+          <div className="panelhead"><div><b>Latest cyber news</b><p>{newsFetchedAt ? `Fetched ${new Date(newsFetchedAt).toLocaleString()}` : "Fetching the latest articles from public RSS feeds"}</p></div><button onClick={()=>void loadCyberNews()} disabled={loadingNews}><RefreshCw size={15} className={loadingNews?"spin":""}/> Refresh news</button></div>
+          <div className="library-filters">
+            <select value={newsWindow} onChange={e=>setNewsWindow(e.target.value)}><option value="24h">Last 24 hours</option><option value="7d">Last 7 days</option><option value="all">All fetched</option></select>
+            <select value={newsSeverity} onChange={e=>setNewsSeverity(e.target.value)}><option value="">All severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
+            <select value={newsSource} onChange={e=>setNewsSource(e.target.value)}><option value="">All sources</option>{[...new Set(cyberNews.map(x=>x.source))].sort().map(source=><option key={source} value={source}>{source}</option>)}</select>
+          </div>
+          <div className="news-legend"><span className="news-critical">Critical</span><span className="news-high">High</span><span className="news-medium">Medium</span><span className="news-low">Low</span><small>Severity is automatically classified from headline and article summary; verify the source for context.</small></div>
+          {newsErrors.length>0&&<p className="muted">Some sources could not be reached: {newsErrors.join(" · ")}</p>}
+          <div className="news-list">
+            {cyberNews.filter(item=>{
+              const age=Date.now()-new Date(item.published_at).getTime();
+              const inWindow=newsWindow==="24h"?age<=86400000:newsWindow==="7d"?age<=7*86400000:true;
+              return inWindow&&(!newsSeverity||item.severity===newsSeverity)&&(!newsSource||item.source===newsSource);
+            }).map(item=><article className={`news-card severity-border-${item.severity}`} key={item.id}>
+              <div className="news-card-top"><span className={`news-severity ${"news-"+item.severity}`}>{item.severity}</span><small>{new Date(item.published_at).toLocaleString()}</small></div>
+              <h3><a href={item.url} target="_blank" rel="noreferrer">{item.headline}</a></h3>
+              <div className="news-details"><div><label>WHAT HAPPENED</label><p>{item.summary}</p></div><div><label>IMPACT</label><p>{item.impact}</p></div></div>
+              <div className="news-source"><span>SOURCE</span><a href={item.url} target="_blank" rel="noreferrer">{item.source} ↗</a></div>
+            </article>)}
+            {!loadingNews&&cyberNews.length===0&&<p className="no-data">No news could be loaded. Check backend connectivity and try refreshing.</p>}
+            {!loadingNews&&cyberNews.length>0&&cyberNews.filter(item=>{const age=Date.now()-new Date(item.published_at).getTime();const inWindow=newsWindow==="24h"?age<=86400000:newsWindow==="7d"?age<=7*86400000:true;return inWindow&&(!newsSeverity||item.severity===newsSeverity)&&(!newsSource||item.source===newsSource);}).length===0&&<p className="no-data">No stories match these filters.</p>}
+          </div>
+        </section>
+      </> : page === "Threat intelligence" ? <>
         <section className="banner"><Radar/><div><b>CISA Known Exploited Vulnerabilities</b><p>CISA KEV and NVD CVE catalogues · fixed trusted HTTPS sources · idempotent ingestion with source provenance.</p></div><span>{feeds.find(f => f.name === "CISA KEV")?.status?.toUpperCase() || "NOT SYNCED"}</span></section>
         <section className="stats">{stats.map(({ label, value, note, icon: Icon }) => <article key={label}><div>{label}<Icon size={18}/></div><strong>{loading ? "…" : value.toLocaleString?.() ?? value}</strong><small>{note}</small></article>)}</section>
         <section className="panel intel-panel">
