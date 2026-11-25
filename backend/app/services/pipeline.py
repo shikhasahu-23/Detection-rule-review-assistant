@@ -113,6 +113,8 @@ def run_intelligence_pipeline(
     generation_errors: list[str] = []
     try:
         active_provider = provider or get_generation_provider()
+        provider_name = getattr(active_provider, "provider_name", type(active_provider).__name__.lower())
+        provider_model = getattr(active_provider, "model", "deterministic-v1")
         for opportunity in opportunities:
             try:
                 intent_id = UUID(opportunity["intent_id"])
@@ -132,7 +134,7 @@ def run_intelligence_pipeline(
                 existing = db.scalar(select(RuleCandidate.id).where(
                     RuleCandidate.intent_id == intent.id,
                     RuleCandidate.platform == platform.value,
-                    RuleCandidate.generator == "pipeline",
+                    RuleCandidate.generator.in_(["pipeline", provider_name]),
                 ).limit(1))
                 if existing is not None:
                     skipped += 1
@@ -160,13 +162,13 @@ def run_intelligence_pipeline(
                         validation_status=report["status"],
                         validation_report=report,
                         generation_metadata={
-                            "provider": type(active_provider).__name__,
-                            "model": getattr(active_provider, "model", "configured-provider"),
+                            "provider": provider_name,
+                            "model": provider_model,
                             "prompt_version": get_platform_contract(platform).prompt_version,
                             "generated_at": datetime.now(UTC).isoformat(),
                             "validation_scope": get_platform_contract(platform).validation_scope,
                         },
-                        generator="pipeline",
+                        generator=provider_name,
                     ))
                     db.commit()
                     created += 1
@@ -180,6 +182,8 @@ def run_intelligence_pipeline(
         run.candidates_created = created
         run.candidates_skipped = skipped
         stage_results["candidate_generation"] = {
+            "provider": provider_name,
+            "model": provider_model,
             "status": "partial" if generation_errors else "succeeded",
             "candidates_created": created,
             "candidates_skipped": skipped,
