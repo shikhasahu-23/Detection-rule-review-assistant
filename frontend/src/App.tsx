@@ -170,6 +170,12 @@ function App() {
 
   const loadDetectionData = useCallback(async () => {
     try {
+      if (page === "Rule library") {
+        const response = await fetch(`${API}/api/v1/rules?limit=100&offset=${libraryOffset}`);
+        if (!response.ok) throw new Error("Unable to load the rule library.");
+        setCandidates(await response.json());
+        return;
+      }
       const response = await fetch(`${API}/api/v1/detection-intents?limit=100`);
       if (!response.ok) throw new Error("Unable to load detection intents.");
       const items: DetectionIntent[] = await response.json();
@@ -195,7 +201,7 @@ function App() {
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load detection engineering data.");
     }
-  }, [selectedIntentId]);
+  }, [selectedIntentId, page, libraryOffset]);
 
   useEffect(() => {
     if (page === "Rule generator" || page === "Rule library") void loadDetectionData();
@@ -562,7 +568,7 @@ function App() {
           <article className="panel"><div className="panelhead"><div><b>Generate candidates</b><p>Build drafts locally from free, deterministic platform templates.</p></div></div>
             <div className="intent-form">
               <label>SAVED DETECTION INTENT</label><select value={selectedIntentId} onChange={e=>{const id=e.target.value;setSelectedIntentId(id);const found=intents.find(x=>x.id===id);if(found)setTargetPlatforms(found.target_platforms);}}><option value="">Select a detection intent</option>{intents.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select>
-              <label>GENERATE QUERIES FOR</label><div className="platform-options">{["splunk","sentinel","chronicle","sigma"].map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform==="sentinel"?"Sentinel KQL":platform==="chronicle"?"Chronicle YARA-L":"Splunk SPL"}</label>)}</div>
+              <label>GENERATE QUERIES FOR</label><div className="platform-options">{["splunk","sentinel","chronicle","sigma"].map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform==="sentinel"?"Sentinel KQL":platform==="chronicle"?"Chronicle YARA-L":platform==="sigma"?"Sigma YAML":"Splunk SPL"}</label>)}</div>
               <button className="primary-action" disabled={generating||!selectedIntentId||targetPlatforms.length===0} onClick={generateRules}><Sparkles size={15}/>{generating?"Generating…":"Generate queries"}</button>
               <p className="muted">One click generates all selected languages. No review queue or approval workflow.</p>
             </div>
@@ -586,7 +592,7 @@ function App() {
             
             <button onClick={()=>void loadRuleLibrary()}><RefreshCw size={15}/> Refresh</button>
           </div>
-          {candidates.filter(candidate=>{const intent=intents.find(x=>x.id===candidate.intent_id);const techniques=intent?.attack_techniques||[];const tacticMatch=!libraryTactic||techniques.some(id=>attackTechniques.some(t=>t.external_id===id&&t.tactics.includes(libraryTactic)));const techniqueMatch=!libraryTechnique||techniques.includes(libraryTechnique);return tacticMatch&&techniqueMatch;}).map(candidate=><article className="candidate-card" key={candidate.id}><div className="candidate-title"><div><b>{candidate.name}</b><small>{candidate.platform.toUpperCase()} · Version {candidate.version}</small></div><button className="copy-query" onClick={()=>navigator.clipboard?.writeText(candidate.query).then(()=>setNotice("Query copied to clipboard."))}>Copy query</button></div><pre>{candidate.query}</pre><small className="muted">ATT&amp;CK: {(intents.find(x=>x.id===candidate.intent_id)?.attack_techniques||[]).join(", ")||"Not mapped"}</small></article>)}
+          {candidates.filter(candidate=>{const intent=intents.find(x=>x.id===candidate.intent_id);const techniques=intent?.attack_techniques||[];const tacticMatch=!libraryTactic||techniques.some(id=>attackTechniques.some(t=>t.external_id===id&&t.tactics.includes(libraryTactic)));const techniqueMatch=!libraryTechnique||techniques.includes(libraryTechnique);const queryMatch=!libraryQuery||candidate.name.toLowerCase().includes(libraryQuery.toLowerCase())||candidate.query.toLowerCase().includes(libraryQuery.toLowerCase());const platformMatch=!libraryPlatform||candidate.platform===libraryPlatform;return tacticMatch&&techniqueMatch&&queryMatch&&platformMatch;}).map(candidate=><article className="candidate-card" key={candidate.id}><div className="candidate-title"><div><b>{candidate.name}</b><small>{candidate.platform.toUpperCase()} · Version {candidate.version} · {candidate.generator==="ioc-intel"?"Threat-intel maintained":candidate.generator}</small></div><button className="copy-query" onClick={()=>navigator.clipboard?.writeText(candidate.query).then(()=>setNotice("Query copied to clipboard."))}>Copy query</button></div><pre>{candidate.query}</pre><small className="muted">ATT&amp;CK: {(intents.find(x=>x.id===candidate.intent_id)?.attack_techniques||[]).join(", ")||"Not mapped"}</small></article>)}
           {candidates.length===0&&<p className="no-data">No rules match the selected filters.</p>}
           <div className="library-pagination"><button disabled={libraryOffset===0} onClick={()=>setLibraryOffset(x=>Math.max(0,x-100))}>Previous</button><span>Showing {libraryOffset+1}–{libraryOffset+candidates.length}</span><button disabled={candidates.length<100} onClick={()=>setLibraryOffset(x=>x+100)}>Next</button></div>
         </section>
