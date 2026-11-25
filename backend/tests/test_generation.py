@@ -24,6 +24,8 @@ def override_get_db():
 
 
 class FakeProvider:
+    provider_name = "test-provider"
+
     def generate(self, intent, platform):
         return GeneratedRule(
             name=f"{platform.value.title()} PowerShell download",
@@ -57,7 +59,7 @@ def test_generate_candidates_for_requested_platforms():
     items = response.json()
     assert len(items) == 1
     assert items[0]["platform"] == "splunk"
-    assert items[0]["generator"] == "openai"
+    assert items[0]["generator"] == "test-provider"
     assert items[0]["status"] == "candidate"
     assert items[0]["validation_report"]["is_deployable"] is False
 
