@@ -16,12 +16,12 @@ from app.schemas.detection import TargetPlatform
 from app.services.cisa_kev import sync_cisa_kev
 from app.services.enrichment import detection_opportunities, enrich_indicator
 from app.services.generation import GenerationProvider, get_generation_provider
+from app.services.ioc_rule_sync import sync_ioc_rules
 from app.services.mitre_attack import sync_attack_catalog
 from app.services.nvd import sync_nvd_cves
 from app.services.platforms import get_platform_contract
 from app.services.public_feeds import sync_public_feed
 from app.services.validation import validate_candidate
-from app.services.ioc_rule_sync import sync_ioc_rules
 
 FeedSyncer = Callable[[Session], dict]
 
