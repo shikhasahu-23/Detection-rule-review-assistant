@@ -1,0 +1,55 @@
+name: Scheduled rule generation
+
+on:
+  schedule:
+    # Weekly at 08:00 IST (02:30 UTC), after the upstream feeds have time to update.
+    - cron: "30 2 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: scheduled-rule-generation
+  cancel-in-progress: false
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check API readiness
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://detectionops-api.onrender.com"
+          curl --fail --silent --show-error --retry 5 --retry-delay 10 "${BASE}/ready" -o /tmp/ready.json
+          echo "Backend is ready."
+
+      - name: Run intelligence, correlation and candidate-generation pipeline
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://detectionops-api.onrender.com"
+          curl --fail --silent --show-error -X POST "${BASE}/api/v1/intelligence/pipeline/runs" -o /tmp/started.json
+          echo "Pipeline accepted: $(cat /tmp/started.json)"
+
+          for attempt in $(seq 1 90); do
+            curl --fail --silent --show-error "${BASE}/api/v1/intelligence/pipeline/runs?limit=5" -o /tmp/runs.json
+            STATUS="$(jq -r '.[0].status // empty' /tmp/runs.json)"
+            if [[ "${STATUS}" == "succeeded" || "${STATUS}" == "partial_success" || "${STATUS}" == "failed" ]]; then
+              jq '.[0] | {run_id,status,indicators_enriched,opportunities_found,candidates_created,candidates_skipped,stage_results,error_message}' /tmp/runs.json
+              GENERATION_STATUS="$(jq -r '.[0].stage_results.candidate_generation.status // "missing"' /tmp/runs.json)"
+              if [[ "${STATUS}" == "failed" || "${GENERATION_STATUS}" != "succeeded" ]]; then
+                echo "::error::Pipeline finished but candidate generation did not fully succeed. Check OPENAI_API_KEY and Render logs."
+                exit 1
+              fi
+              CREATED="$(jq -r '.[0].candidates_created // 0' /tmp/runs.json)"
+              echo "Rule-generation run completed. New candidates created: ${CREATED}"
+              exit 0
+            fi
+            sleep 10
+          done
+
+          echo "::error::Pipeline did not finish within 15 minutes."
+          exit 1
