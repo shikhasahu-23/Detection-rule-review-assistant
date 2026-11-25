@@ -9,12 +9,12 @@ const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 type Summary = { indicators_total: number; active_indicators: number; sources_total: number; latest_run: { source: string; status: string; started_at: string; records_seen: number; indicators_created: number } | null };
 type Indicator = { id: string; indicator_type: string; value: string; confidence: number; severity: string; status: string; description: string | null; tags: string[]; created_at: string };
 type Feed = { name: string; status: string; last_run: string; records_seen: number; indicators_created: number };
-type DetectionIntent = { id: string; title: string; description: string; behavior: string; severity: string; target_platforms: string[]; status: string };
+type DetectionIntent = { id: string; title: string; description: string; behavior: string; severity: string; target_platforms: string[]; attack_techniques?: string[]; status: string };
 type TestRun = { id:string; status:string; total_cases:number; passed_cases:number; failed_cases:number; case_results:{name:string;scenario_type:string;status:string;checks:{operator:string;value:string;passed:boolean}[]}[]; regression_report:{status:string;regressions:string[];improvements:string[]} };
 type RuleCandidate = { id: string; name: string; platform: string; query: string; version: number; status: string; validation_status: string; validation_report: { errors: {code:string;message:string}[]; warnings: {code:string;message:string}[]; is_deployable: boolean; telemetry_coverage?: {score:number|null;status:string;matched_requirements:number;total_requirements:number} }; generation_metadata: {provider?:string;model?:string;prompt_version?:string;generated_at?:string;validation_scope?:string}; generator: string };
 type AttackTechnique = { id: string; external_id: string; name: string; description: string; platforms: string[]; tactics: string[]; is_subtechnique: boolean; revoked: boolean; deprecated: boolean; source_url: string };
 type PipelineRun = { run_id: string; status: string; trigger: string; indicators_enriched: number; opportunities_found: number; candidates_created: number; candidates_skipped: number; started_at: string; completed_at: string | null; error_message: string | null; stage_results: Record<string, {status: string; reason?: string; error?: string}> };
-type ThreatNode = { id: string; entity_type: string; external_id: string; name: string; confidence: number; source_name: string; source_reference: string; source_url: string | null; revoked: boolean; deprecated: boolean };
+type ThreatNode = { id: string; entity_type: string; external_id: string; name: string; description?: string; confidence: number; source_name: string; source_reference: string; source_url: string | null; revoked: boolean; deprecated: boolean };
 type ThreatEdge = { id: string; source: string; target: string; relationship_type: string; confidence: number; assertion_status: string; source_name: string; source_reference: string; source_url: string | null };
 type ThreatGraph = { nodes: ThreatNode[]; edges: ThreatEdge[]; truncated: boolean };
 type Opportunity = { intent_id: string; title: string; severity: string; status: string; target_platforms: string[]; association_type: string; indicators: { indicator_id: string; indicator_type: string; value: string; confidence: number; severity: string; freshness: string; evidence_count: number }[]; matched_techniques: string[]; matched_cves: string[]; indicator_count: number; evidence_count: number; rationale: string };
@@ -26,9 +26,6 @@ const nav = [
   { label: "Threat graph", icon: Network },
   { label: "ATT&CK catalog", icon: ShieldCheck },
   { label: "Rule generator", icon: Sparkles },
-  { label: "Effectiveness", icon: Activity },
-  { label: "Validation", icon: ShieldCheck },
-  { label: "Review queue", icon: FileSearch },
   { label: "Rule library", icon: Database },
 ];
 
@@ -38,6 +35,11 @@ function App() {
   const [indicators, setIndicators] = useState<Indicator[]>([]);
   const [feeds, setFeeds] = useState<Feed[]>([]);
   const [query, setQuery] = useState("");
+  const [intelWindow, setIntelWindow] = useState("7d");
+  const [intelImpact, setIntelImpact] = useState("");
+  const [intelSeverity, setIntelSeverity] = useState("");
+  const [intelType, setIntelType] = useState("");
+  const [intelStatus, setIntelStatus] = useState("");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [syncingNvd, setSyncingNvd] = useState(false);
@@ -53,7 +55,7 @@ function App() {
   const [intentDescription, setIntentDescription] = useState("");
   const [intentBehavior, setIntentBehavior] = useState("");
   const [attackTechniqueIds, setAttackTechniqueIds] = useState("");
-  const [targetPlatforms, setTargetPlatforms] = useState<string[]>(["splunk", "sentinel"]);
+  const [targetPlatforms, setTargetPlatforms] = useState<string[]>(["splunk", "sentinel", "chronicle"]);
   const [creatingIntent, setCreatingIntent] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [attackTechniques, setAttackTechniques] = useState<AttackTechnique[]>([]);
@@ -63,6 +65,8 @@ function App() {
   const [libraryQuery, setLibraryQuery] = useState("");
   const [libraryPlatform, setLibraryPlatform] = useState("");
   const [libraryValidation, setLibraryValidation] = useState("");
+  const [libraryTactic, setLibraryTactic] = useState("");
+  const [libraryTechnique, setLibraryTechnique] = useState("");
   const [libraryOffset, setLibraryOffset] = useState(0);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [loadingOpportunities, setLoadingOpportunities] = useState(false);
@@ -82,7 +86,7 @@ function App() {
     try {
       const [s, i, f] = await Promise.all([
         fetch(`${API}/api/v1/intelligence/summary`),
-        fetch(`${API}/api/v1/intelligence/indicators?limit=100`),
+        fetch(`${API}/api/v1/intelligence/indicators?limit=500`),
         fetch(`${API}/api/v1/intelligence/feeds`),
       ]);
       if (![s, i, f].every((r) => r.ok)) throw new Error("The API is unavailable. Start the backend and database, then retry.");
@@ -185,7 +189,7 @@ function App() {
   }, [selectedIntentId]);
 
   useEffect(() => {
-    if (["Rule generator", "Validation", "Review queue"].includes(page)) void loadDetectionData();
+    if (page === "Rule generator" || page === "Rule library") void loadDetectionData();
   }, [page, loadDetectionData]);
 
   const createIntent = async () => {
@@ -222,7 +226,7 @@ function App() {
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body.detail || "Candidate generation failed.");
-      setNotice(`${body.length} candidate(s) generated. Review the query and validation warnings before using them.`);
+      setNotice(`${body.length} ready-to-copy query set(s) generated across your selected platforms.`);
       await loadDetectionData();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Candidate generation failed.");
@@ -244,7 +248,7 @@ function App() {
   }, [libraryQuery, libraryPlatform, libraryValidation, libraryOffset]);
 
   useEffect(() => {
-    if (page === "Rule library") void loadRuleLibrary();
+    if (page === "Rule library") { void loadRuleLibrary(); void loadDetectionData(); }
   }, [page, loadRuleLibrary]);
 
   const runCandidateTests = async (candidateId: string) => {
@@ -379,10 +383,17 @@ function App() {
     } finally { setSyncingNvd(false); }
   };
 
-  const filtered = indicators.filter((item) =>
-    item.value.toLowerCase().includes(query.toLowerCase()) ||
-    (item.description || "").toLowerCase().includes(query.toLowerCase())
-  );
+  const filtered = indicators.filter((item) => {
+    const created = new Date(item.created_at).getTime();
+    const age = Date.now() - created;
+    const inWindow = intelWindow === "24h" ? age <= 24*60*60*1000 : intelWindow === "7d" ? age <= 7*24*60*60*1000 : true;
+    const impact = ["critical","high"].includes(item.severity.toLowerCase()) ? "high" : item.severity.toLowerCase() === "medium" ? "medium" : "low";
+    return inWindow && (!intelImpact || impact === intelImpact) &&
+      (!intelSeverity || item.severity.toLowerCase() === intelSeverity) &&
+      (!intelType || item.indicator_type.toLowerCase() === intelType) &&
+      (!intelStatus || item.status.toLowerCase() === intelStatus) &&
+      (item.value.toLowerCase().includes(query.toLowerCase()) || (item.description || "").toLowerCase().includes(query.toLowerCase()));
+  });
   const stats = [
     { label: "Active intelligence", value: summary?.active_indicators ?? "—", note: "Active indicators stored", icon: Radar },
     { label: "Total indicators", value: summary?.indicators_total ?? "—", note: "Deduplicated records", icon: BrainCircuit },
@@ -401,7 +412,7 @@ function App() {
     <main>
       <header><span>Workspace　›　<b>{page}</b></span><small><span className="live-dot"/> PRODUCTION</small></header>
       <section className="heading">
-        <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>{page === "Threat intelligence" ? "Threat Intelligence Center" : page === "ATT&CK catalog" ? "MITRE ATT&CK Catalog" : page === "Rule generator" ? "Detection Rule Generator" : page === "Correlation" ? "Intelligence Correlation" : page === "Threat graph" ? "Threat Entity Graph" : page === "Effectiveness" ? "Detection Quality & Coverage" : "Good morning, team 👋"}</h1><p>Monitor threat intelligence, preserve source evidence, and prepare trusted inputs for detection engineering.</p></div>
+        <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>{page === "Threat intelligence" ? "Threat Intelligence Center" : page === "ATT&CK catalog" ? "MITRE ATT&CK Catalog" : page === "Rule generator" ? "Detection Rule Generator" : page === "Correlation" ? "Intelligence Correlation" : page === "Threat graph" ? "Threat Entity Graph" : "Good morning, team 👋"}</h1><p>Monitor threat intelligence, preserve source evidence, and prepare trusted inputs for detection engineering.</p></div>
         {page === "Threat intelligence" && <div className="feed-actions"><button onClick={startPipeline} disabled={pipelineQueued}><Network size={16} className={pipelineQueued ? "spin" : ""}/>{pipelineQueued ? "Queueing…" : "Run full pipeline"}</button><button onClick={syncCisa} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncing ? "spin" : ""}/>{syncing ? "Syncing CISA…" : "Sync CISA KEV"}</button><button onClick={syncNvd} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncingNvd ? "spin" : ""}/>{syncingNvd ? "Syncing NVD…" : "Sync NVD CVEs"}</button><label className="upload-button">{uploadingCsv?"Importing CSV…":"Import CSV"}<input type="file" accept=".csv,text/csv" disabled={uploadingCsv} onChange={e=>{const input=e.currentTarget;const file=input.files?.[0];input.value="";if(file)void importCsv(file);}}/></label></div>}
         {page === "ATT&CK catalog" && <button onClick={syncAttack} disabled={syncingAttack}><RefreshCw size={16} className={syncingAttack ? "spin" : ""}/>{syncingAttack ? "Syncing catalog…" : "Sync ATT&CK"}</button>}
       </section>
@@ -411,7 +422,15 @@ function App() {
         <section className="banner"><Radar/><div><b>CISA Known Exploited Vulnerabilities</b><p>CISA KEV and NVD CVE catalogues · fixed trusted HTTPS sources · idempotent ingestion with source provenance.</p></div><span>{feeds.find(f => f.name === "CISA KEV")?.status?.toUpperCase() || "NOT SYNCED"}</span></section>
         <section className="stats">{stats.map(({ label, value, note, icon: Icon }) => <article key={label}><div>{label}<Icon size={18}/></div><strong>{loading ? "…" : value.toLocaleString?.() ?? value}</strong><small>{note}</small></article>)}</section>
         <section className="panel intel-panel">
-          <div className="panelhead"><div><b>Indicator inventory</b><p>Normalized indicators with source-backed evidence</p></div><span>{filtered.length} records</span></div>
+          <div className="panelhead"><div><b>Indicator inventory</b><p>Quickly narrow current intelligence by recency, impact and status</p></div><span>{filtered.length} matching records</span></div>
+          <div className="library-filters">
+            <select value={intelWindow} onChange={e=>setIntelWindow(e.target.value)}><option value="24h">Last 24 hours</option><option value="7d">Last 7 days</option><option value="all">All time</option></select>
+            <select value={intelImpact} onChange={e=>setIntelImpact(e.target.value)}><option value="">All impact levels</option><option value="high">High impact</option><option value="medium">Medium impact</option><option value="low">Low / unknown impact</option></select>
+            <select value={intelSeverity} onChange={e=>setIntelSeverity(e.target.value)}><option value="">All severities</option>{["critical","high","medium","low","unknown"].map(v=><option key={v} value={v}>{v}</option>)}</select>
+            <select value={intelType} onChange={e=>setIntelType(e.target.value)}><option value="">All types</option>{[...new Set(indicators.map(x=>x.indicator_type))].sort().map(v=><option key={v} value={v}>{v.toUpperCase()}</option>)}</select>
+            <select value={intelStatus} onChange={e=>setIntelStatus(e.target.value)}><option value="">All statuses</option>{[...new Set(indicators.map(x=>x.status))].sort().map(v=><option key={v} value={v}>{v}</option>)}</select>
+          </div>
+          <small className="muted">Impact is grouped from the available severity field; no separate impact score is currently stored.</small>
           <div className="searchbar"><Search size={16}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search CVE or description…"/><button onClick={loadData} title="Refresh"><RefreshCw size={15}/></button></div>
           <div className="table-wrap"><table><thead><tr><th>INDICATOR</th><th>TYPE</th><th>SEVERITY</th><th>CONFIDENCE</th><th>STATUS</th></tr></thead><tbody>
             {filtered.map(item => <tr key={item.id}><td><b>{item.value}</b><small>{item.description || item.tags.join(" · ") || "No description supplied"}</small></td><td><span className="type-pill">{item.indicator_type.toUpperCase()}</span></td><td><span className={`severity ${item.severity}`}>{item.severity}</span></td><td>{item.confidence}%</td><td><span className="status-pill">{item.status}</span></td></tr>)}
@@ -437,7 +456,8 @@ function App() {
         <section className="banner"><Network/><div><b>Source-backed threat entity graph</b><p>Explore actors, malware, campaigns, tools, infrastructure and vulnerabilities. Relationships retain source provenance and are labelled as source-observed, not independently verified.</p></div><span>STIX 2.1</span></section>
         <section className="panel intel-panel">
           <div className="panelhead"><div><b>Import STIX bundle</b><p>Upload a STIX 2.1 JSON bundle (up to 5,000 objects). Re-imports are idempotent.</p></div><label className="upload-button"><input type="file" accept=".json,application/json" disabled={stixImporting} onChange={e=>{void importStix(e.target.files?.[0]);e.currentTarget.value="";}}/>{stixImporting?"Importing…":"Import STIX JSON"}</label></div>
-          <div className="graph-stats"><div><b>{threatGraph.nodes.length}</b><small>Entities loaded</small></div><div><b>{threatGraph.edges.length}</b><small>Relationships loaded</small></div><div><b>{new Set(threatGraph.nodes.map(n=>n.entity_type)).size}</b><small>Entity types</small></div></div>
+          <div className="graph-stats"><div><b>{threatGraph.nodes.length}</b><small>Entities</small></div><div><b>{threatGraph.edges.length}</b><small>Connected relationships</small></div><div><b>{threatGraph.nodes.filter(n=>n.confidence>=80).length}</b><small>High-confidence entities (80%+)</small></div></div>
+          <div className="graph-front-summary"><b>What matters at a glance</b><p>{threatGraph.nodes.length ? `Explore ${new Set(threatGraph.nodes.map(n=>n.entity_type)).size} entity types and ${threatGraph.edges.length} source-recorded relationships. Higher confidence reflects source confidence, not proof of malicious activity.` : "Import a STIX bundle to see actors, malware, campaigns, tools and infrastructure connected by reported relationships."}</p></div>
           <div className="searchbar"><Search size={16}/><input value={entitySearch} onChange={e=>setEntitySearch(e.target.value)} placeholder="Search entity name or STIX ID…"/></div>
           <div className="library-filters"><select value={entityTypeFilter} onChange={e=>setEntityTypeFilter(e.target.value)}><option value="">All entity types</option>{["threat_actor","malware","campaign","tool","infrastructure","vulnerability"].map(type=><option key={type} value={type}>{type.replaceAll("_"," ")}</option>)}</select><button onClick={()=>void loadThreatGraph()} disabled={loadingThreatGraph}><RefreshCw size={15} className={loadingThreatGraph?"spin":""}/> Refresh</button></div>
           {threatGraph.truncated&&<p className="muted">Graph view is capped at 500 entities and 1,000 relationships. Use entity search for larger imports.</p>}
@@ -461,11 +481,11 @@ function App() {
           {!loadingOpportunities && opportunities.length===0&&<p className="no-data">No evidence-backed detection opportunities yet. Import or sync intelligence and create detection intents with matching ATT&amp;CK IDs or CVE evidence references.</p>}
         </section>
       </> : page === "Rule generator" ? <>
-        <section className="banner"><Sparkles/><div><b>Free template-based rule generation</b><p>No API key or paid AI service needed. Describe the behavior and use analyst-supplied telemetry fields to build a transparent starting query.</p></div><span>NO API COST</span></section>
+        <section className="banner"><Sparkles/><div><b>Generate queries for your SIEMs</b><p>One detection idea produces ready-to-copy query drafts for every selected language. No AI API key or paid generation service.</p></div><span>FREE</span></section>
         <section className="panel" style={{marginTop:16,padding:15}}>
-          <b>Quick guide</b>
-          <p className="muted" style={{marginTop:7}}>1. Create a detection intent. 2. Add the telemetry fields your logs actually contain. 3. Select a supported platform and generate. 4. Review the query, warnings and offline tests before using it.</p>
-          <p className="muted" style={{marginTop:7}}>Free templates currently support Splunk SPL, Microsoft Sentinel KQL and Chronicle YARA-L. CrowdStrike query generation is disabled until its grammar can be verified. Templates are starting points, not AI-generated or production-validated detections.</p>
+          <b>How to use it</b>
+          <p className="muted" style={{marginTop:7}}>1. Describe the activity you want to detect. 2. Add the ATT&amp;CK technique IDs if known. 3. Choose the platforms. 4. Generate and copy the query you need.</p>
+          <p className="muted" style={{marginTop:7}}>Available query languages: Splunk SPL, Microsoft Sentinel KQL and Chronicle YARA-L. Queries use your intent's telemetry fields. Confirm those fields match your own data source before deploying.</p>
         </section>
         <section className="columns">
           <article className="panel"><div className="panelhead"><div><b>Create detection intent</b><p>Define behavior and telemetry before generating queries.</p></div></div>
@@ -475,39 +495,38 @@ function App() {
               <label>BEHAVIOR DETAILS</label><textarea value={intentBehavior} onChange={e=>setIntentBehavior(e.target.value)} placeholder="Describe the attacker behavior, sequence and expected signals."/>
               <small className="muted">Tip: mention known behaviors or tools (for example PowerShell, certutil or encoded commands) to make the free templates more specific.</small>
               <label>MITRE ATT&CK TECHNIQUE IDS (OPTIONAL)</label><input value={attackTechniqueIds} onChange={e=>setAttackTechniqueIds(e.target.value)} placeholder="T1059.001, T1105"/>
-              <label>TARGET PLATFORMS</label><div className="platform-options">{["splunk","sentinel","chronicle"].map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform}</label>)}</div>
-              <small className="muted">CrowdStrike is temporarily unavailable in free mode because its query grammar is not verified.</small>
+              <label>QUERY LANGUAGES</label><div className="platform-options">{["splunk","sentinel","chronicle"].map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform==="sentinel"?"Microsoft Sentinel KQL":platform==="chronicle"?"Google SecOps YARA-L":"Splunk SPL"}</label>)}</div>
               <button className="primary-action" disabled={creatingIntent||intentTitle.length<3||intentDescription.length<10||intentBehavior.length<10||targetPlatforms.length===0} onClick={createIntent}>{creatingIntent?"Saving intent…":"Save detection intent"}</button>
             </div>
           </article>
           <article className="panel"><div className="panelhead"><div><b>Generate candidates</b><p>Build drafts locally from free, deterministic platform templates.</p></div></div>
             <div className="intent-form">
               <label>SAVED DETECTION INTENT</label><select value={selectedIntentId} onChange={e=>{const id=e.target.value;setSelectedIntentId(id);const found=intents.find(x=>x.id===id);if(found)setTargetPlatforms(found.target_platforms);}}><option value="">Select a detection intent</option>{intents.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select>
-              <label>PLATFORMS TO GENERATE</label><div className="platform-options">{(selectedIntent?.target_platforms ?? []).map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform}</label>)}</div>
-              <button className="primary-action" disabled={generating||!selectedIntentId||targetPlatforms.length===0} onClick={generateRules}><Sparkles size={15}/>{generating?"Generating…":"Generate detection candidates"}</button>
-              <p className="muted">No OPENAI_API_KEY required. Generation is deterministic and free. Candidates remain unapproved and non-deployable.</p>
+              <label>GENERATE QUERIES FOR</label><div className="platform-options">{["splunk","sentinel","chronicle"].map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform==="sentinel"?"Sentinel KQL":platform==="chronicle"?"Chronicle YARA-L":"Splunk SPL"}</label>)}</div>
+              <button className="primary-action" disabled={generating||!selectedIntentId||targetPlatforms.length===0} onClick={generateRules}><Sparkles size={15}/>{generating?"Generating…":"Generate queries"}</button>
+              <p className="muted">One click generates all selected languages. No review queue or approval workflow.</p>
             </div>
           </article>
         </section>
-        <section className="panel intel-panel"><div className="panelhead"><div><b>Generated rule candidates</b><p>Versioned drafts with deterministic static-check results</p></div><span>{candidates.length} candidates</span></div>
+        <section className="panel intel-panel"><div className="panelhead"><div><b>Your generated queries</b><p>Copy the query for the platform you use</p></div><span>{candidates.length} queries</span></div>
           {candidates.length ? candidates.map(candidate=><article className="candidate-card" key={candidate.id}>
-            <div className="candidate-title"><div><b>{candidate.name}</b><small>{candidate.platform.toUpperCase()} · VERSION {candidate.version} · {candidate.generator}</small></div><span className={candidate.validation_status==="failed"?"feed-fail":"feed-ok"}>{candidate.validation_status.replaceAll("_"," ")}</span></div>
+            <div className="candidate-title"><div><b>{candidate.name}</b><small>{candidate.platform==="sentinel"?"Microsoft Sentinel KQL":candidate.platform==="chronicle"?"Google SecOps YARA-L":"Splunk SPL"} · Version {candidate.version}</small></div><button className="copy-query" onClick={()=>navigator.clipboard?.writeText(candidate.query).then(()=>setNotice("Query copied to clipboard."))}>Copy query</button></div>
             <pre>{candidate.query}</pre>
-            {[...candidate.validation_report.errors,...candidate.validation_report.warnings].map((item,index)=><p className="validation-note" key={item.code+index}><AlertTriangle size={13}/><b>{item.code}</b> — {item.message}</p>)}
-            <small className="muted">Status: {candidate.status} · Deployable: No — analyst approval and vendor validation remain required.</small>
           </article>) : <p className="no-data">No candidates yet. Save a detection intent and generate the first draft.</p>}
         </section>
       </> : page === "Rule library" ? <>
         <section className="banner"><Database/><div><b>Searchable detection rule library</b><p>Browse generated and manually authored candidate versions across detection intents. All entries remain non-approved and non-deployable.</p></div><span>CATALOG</span></section>
         <section className="panel intel-panel">
-          <div className="panelhead"><div><b>Rule inventory</b><p>Search by rule name or query, then narrow by platform and validation outcome.</p></div><span>{candidates.length} results</span></div>
+          <div className="panelhead"><div><b>Rule library</b><p>Find rules by MITRE tactic, technique or query language.</p></div><span>{candidates.length} results</span></div>
           <div className="searchbar"><Search size={16}/><input value={libraryQuery} onChange={e=>{setLibraryQuery(e.target.value);setLibraryOffset(0);}} placeholder="Search rule names or query text…"/></div>
           <div className="library-filters">
+            <select value={libraryTactic} onChange={e=>setLibraryTactic(e.target.value)}><option value="">All tactics</option>{[...new Set(attackTechniques.flatMap(x=>x.tactics))].sort().map(t=><option key={t} value={t}>{t.replaceAll("_"," ")}</option>)}</select>
+            <select value={libraryTechnique} onChange={e=>setLibraryTechnique(e.target.value)}><option value="">All techniques</option>{[...new Set(intents.flatMap(x=>x.attack_techniques||[]))].sort().map(t=><option key={t} value={t}>{t}</option>)}</select>
             <select value={libraryPlatform} onChange={e=>{setLibraryPlatform(e.target.value);setLibraryOffset(0);}}><option value="">All platforms</option>{["splunk","sentinel","chronicle","crowdstrike"].map(p=><option key={p} value={p}>{p.toUpperCase()}</option>)}</select>
-            <select value={libraryValidation} onChange={e=>{setLibraryValidation(e.target.value);setLibraryOffset(0);}}><option value="">All validation results</option><option value="passed">Passed</option><option value="passed_with_warnings">Passed with warnings</option><option value="failed">Failed</option></select>
+            
             <button onClick={()=>void loadRuleLibrary()}><RefreshCw size={15}/> Refresh</button>
           </div>
-          {candidates.map(candidate=><article className="candidate-card" key={candidate.id}><div className="candidate-title"><div><b>{candidate.name}</b><small>{candidate.platform.toUpperCase()} · V{candidate.version} · {candidate.generator}</small></div><span>{candidate.validation_status}</span></div><pre>{candidate.query}</pre>{candidate.validation_report.telemetry_coverage&&<small className="muted">Telemetry coverage: {candidate.validation_report.telemetry_coverage.score===null?"Not assessed":`${candidate.validation_report.telemetry_coverage.score}%`} · {candidate.validation_report.telemetry_coverage.matched_requirements}/{candidate.validation_report.telemetry_coverage.total_requirements} required fields</small>}<small className="muted">Prompt: {candidate.generation_metadata?.prompt_version||"manual"} · Model: {candidate.generation_metadata?.model||"—"} · Candidate · Not approved · Not deployable</small>{candidate.validation_report.errors?.length>0&&<small className="muted">Errors: {candidate.validation_report.errors.map(x=>x.message).join(" · ")}</small>}{candidate.validation_report.warnings?.length>0&&<small className="muted">Warnings: {candidate.validation_report.warnings.map(x=>x.message).join(" · ")}</small>}</article>)}
+          {candidates.filter(candidate=>{const intent=intents.find(x=>x.id===candidate.intent_id);const techniques=intent?.attack_techniques||[];const tacticMatch=!libraryTactic||techniques.some(id=>attackTechniques.some(t=>t.external_id===id&&t.tactics.includes(libraryTactic)));const techniqueMatch=!libraryTechnique||techniques.includes(libraryTechnique);return tacticMatch&&techniqueMatch;}).map(candidate=><article className="candidate-card" key={candidate.id}><div className="candidate-title"><div><b>{candidate.name}</b><small>{candidate.platform.toUpperCase()} · Version {candidate.version}</small></div><button className="copy-query" onClick={()=>navigator.clipboard?.writeText(candidate.query).then(()=>setNotice("Query copied to clipboard."))}>Copy query</button></div><pre>{candidate.query}</pre><small className="muted">ATT&amp;CK: {(intents.find(x=>x.id===candidate.intent_id)?.attack_techniques||[]).join(", ")||"Not mapped"}</small></article>)}
           {candidates.length===0&&<p className="no-data">No rules match the selected filters.</p>}
           <div className="library-pagination"><button disabled={libraryOffset===0} onClick={()=>setLibraryOffset(x=>Math.max(0,x-100))}>Previous</button><span>Showing {libraryOffset+1}–{libraryOffset+candidates.length}</span><button disabled={candidates.length<100} onClick={()=>setLibraryOffset(x=>x+100)}>Next</button></div>
         </section>
@@ -533,7 +552,7 @@ function App() {
           <section className="panel intel-panel"><div className="panelhead"><div><b>Scoring methodology</b><p>Read before interpreting the dashboard.</p></div></div><p className="methodology">{effectiveness.methodology.readiness_score}</p><p className="methodology">{effectiveness.methodology.attck_coverage}</p><ul className="limitations">{effectiveness.methodology.limitations.map((item:string)=><li key={item}>{item}</li>)}</ul></section>
         </>:<div className="panel no-data">{loadingEffectiveness?"Loading effectiveness metrics…":"No metrics available."}</div>}
       </> : page === "Validation" || page === "Review queue" ? <>
-        <section className="banner"><ShieldCheck/><div><b>{page}</b><p>Candidate queries and static validation results. Approval and production export are not enabled yet.</p></div><span>READ ONLY</span></section>
+        <section className="banner"><ShieldCheck/><div><b>{page}</b><p>This section is no longer part of the simplified workspace.</p></div><span>HIDDEN</span></section>
         <section className="panel intel-panel"><div className="panelhead"><div><b>Candidate inventory</b><p>Select an intent to inspect its candidates.</p></div><span>{candidates.length} candidates</span></div>
           <div className="field"><label>Offline test suite (JSON)</label><textarea rows={8} value={testSuiteJson} onChange={e=>setTestSuiteJson(e.target.value)} spellCheck={false}/><small className="muted">Assertions inspect query text only. Fixtures are context; they are not executed as events.</small></div>
           <select className="intent-select" value={selectedIntentId} onChange={e=>setSelectedIntentId(e.target.value)}><option value="">Select intent</option>{intents.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select>
@@ -543,7 +562,7 @@ function App() {
         <section className="banner"><Activity/><div><b>Your workspace is ready for detection engineering</b><p>Start by ingesting trusted intelligence. Rule generation and approval workflows will build on this foundation.</p></div><span>PHASE 2</span></section>
         <section className="stats">{stats.map(({label,value,note,icon:Icon})=><article key={label}><div>{label}<Icon size={18}/></div><strong>{loading ? "…" : value.toLocaleString?.() ?? value}</strong><small>{note}</small></article>)}</section>
         <section className="columns"><article className="panel"><div className="panelhead"><div><b>Core workflow</b><p>Build the intelligence-to-detection pipeline.</p></div></div>
-          {[{title:"Ingest threat intelligence",desc:"CISA KEV connector is available in Threat Intelligence.",icon:Radar},{title:"Enrich and correlate",desc:"Normalize evidence and map relationships and ATT&CK techniques.",icon:Database},{title:"Generate detection candidates",desc:"Build free platform-specific drafts from analyst-supplied fields and templates.",icon:Sparkles},{title:"Validate and review",desc:"Run deterministic checks and require human approval.",icon:ShieldCheck}].map(({title,desc,icon:Icon})=><div className="step" key={title}><Icon/><div><b>{title}</b><small>{desc}</small></div><label>ROADMAP</label><ChevronRight size={15}/></div>)}
+          {[{title:"Ingest threat intelligence",desc:"CISA KEV connector is available in Threat Intelligence.",icon:Radar},{title:"Enrich and correlate",desc:"Normalize evidence and map relationships and ATT&CK techniques.",icon:Database},{title:"Generate SIEM queries",desc:"Create copy-ready queries in Splunk, Sentinel and Chronicle formats.",icon:Sparkles}].map(({title,desc,icon:Icon})=><div className="step" key={title}><Icon/><div><b>{title}</b><small>{desc}</small></div><label>ROADMAP</label><ChevronRight size={15}/></div>)}
         </article><article className="panel activity"><div className="panelhead"><div><b>Latest intelligence run</b><p>Most recent feed execution</p></div><ArrowUpRight/></div><div className="empty"><CheckCircle2/><b>{summary?.latest_run ? summary.latest_run.status : "Waiting for first sync"}</b><p>{summary?.latest_run ? `${summary.latest_run.records_seen} records checked from ${summary.latest_run.source}.` : "Open Threat Intelligence and run the CISA KEV connector to start."}</p><button onClick={() => setPage("Threat intelligence")}>Open Intelligence Center</button></div></article></section>
       </>}
       <div className="footnote"><AlertTriangle size={15}/> Intelligence feed content is treated as untrusted evidence. Generated detections remain candidates until validated and approved; production deployment is disabled.</div>
