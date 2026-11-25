@@ -141,7 +141,7 @@ def _ioc_query(kind: str, values: list[str], platform: TargetPlatform) -> str:
             return "DeviceFileEvents\n| where SHA256 in (" + ", ".join(quoted) + ") or SHA1 in (" + ", ".join(quoted) + ")\n| project Timestamp, DeviceName, FileName, FolderPath, SHA256, SHA1"
         expr = " or ".join(f"$e.target.file.sha256 = {v} or $e.target.file.md5 = {v} or $e.target.file.sha1 = {v}" for v in quoted)
     name = re.sub(r"[^a-zA-Z0-9_]", "_", "threatweave_ioc_" + kind).strip("_")
-    event_type = "SCAN_VULNERABILITY" if kind == "cve" else "NETWORK_CONNECTION"
+    event_type = "SCAN_VULNERABILITY" if kind == "cve" else "FILE_CREATION" if kind in {"hash", "file_hash"} else "NETWORK_CONNECTION"
     return (
         f"rule {name} {{\n  meta:\n    author = \"ThreatWeave\"\n"
         f'    description = "Active {kind} IOC matches; verify UDM field coverage"\n'
