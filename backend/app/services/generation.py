@@ -52,7 +52,7 @@ def _ioc_values(intent: dict) -> tuple[str, list[str]]:
     values = sorted({str(value).strip() for value in intent.get("indicator_values", []) if str(value).strip()})
     if not values:
         raise GenerationUnavailable("No active IOC values were supplied.")
-    if kind not in {"ip", "ipv4", "ipv6", "domain", "hostname", "url", "hash", "file_hash"}:
+    if kind not in {"ip", "ipv4", "ipv6", "domain", "hostname", "url", "hash", "file_hash", "cve"}:
         raise GenerationUnavailable(f"IOC type '{kind}' has no verified event-field mapping yet.")
     return kind, values
 
@@ -64,6 +64,8 @@ def _sigma(kind: str, values: list[str], title: str) -> str:
         fields, category = {"DestinationHostname": values, "QueryName": values}, "dns"
     elif kind == "url":
         fields, category = {"Url": values}, "proxy"
+    elif kind == "cve":
+        fields, category = {"CVE": values}, "vulnerability"
     else:
         fields, category = {"Hashes|contains": values}, "process_creation"
     lines = [
@@ -81,6 +83,27 @@ def _sigma(kind: str, values: list[str], title: str) -> str:
         lines.append(f"        {field}:")
         lines.extend("            - " + json.dumps(value) for value in entries)
     lines.extend(["    condition: selection", "falsepositives:", "    - Validate against local telemetry and allowlists", "level: high"])
+    return "\n".join(lines)
+
+
+def _intent_sigma(intent: dict, title: str) -> str:
+    mapping = {"process_name": "Image", "command_line": "CommandLine",
+               "parent_process_name": "ParentImage", "destination_ip": "DestinationIp",
+               "destination_domain": "DestinationHostname", "user": "User"}
+    fields = {}
+    for requirement in intent.get("required_telemetry", []):
+        for field in requirement.get("required_fields", []):
+            sigma_field = mapping.get(str(field).lower())
+            if sigma_field:
+                fields[sigma_field] = "*"
+    if not fields:
+        raise GenerationUnavailable("Sigma generation needs supported fields such as process_name, command_line or destination_ip.")
+    lines = ["title: " + json.dumps(title), 'id: "b6d1a8d4-5b22-4b4e-9a3e-7f8c2e5a1d91"',
+             "status: experimental", "description: " + json.dumps(str(intent.get("description", ""))[:500]),
+             "author: ThreatWeave", "logsource:", "    category: process_creation",
+             "detection:", "    selection:"]
+    lines.extend(f"        {field}: {json.dumps(value)}" for field, value in fields.items())
+    lines.extend(["    condition: selection", "falsepositives:", "    - Validate against local telemetry", "level: medium"])
     return "\n".join(lines)
 
 
@@ -104,6 +127,12 @@ def _ioc_query(kind: str, values: list[str], platform: TargetPlatform) -> str:
         if platform is TargetPlatform.SENTINEL:
             return "DeviceNetworkEvents\n| where RemoteUrl in (" + ", ".join(quoted) + ")\n| project Timestamp, DeviceName, RemoteIP, RemoteUrl, InitiatingProcessFileName"
         expr = " or ".join(f"$e.target.url = {v}" for v in quoted)
+    elif kind == "cve":
+        if platform is TargetPlatform.SPLUNK:
+            return "search (" + " OR ".join(f"cve={v} OR vulnerability_id={v}" for v in quoted) + ")"
+        if platform is TargetPlatform.SENTINEL:
+            return "DeviceTvmSoftwareVulnerabilities\n| where CveId in (" + ", ".join(quoted) + ")\n| project DeviceId, DeviceName, SoftwareName, CveId, VulnerabilitySeverityLevel"
+        expr = " or ".join(f"$e.vulnerability.cve_id = {v}" for v in quoted)
     else:
         if platform is TargetPlatform.SPLUNK:
             return "search (" + " OR ".join(f"file_hash={v} OR sha256={v} OR md5={v} OR sha1={v}" for v in quoted) + ")"
@@ -159,7 +188,7 @@ class TemplateGenerationProvider:
                 "  condition:\n    $e\n}"
             )
         elif platform is TargetPlatform.SIGMA:
-            query = _sigma("hash", ["replace-with-real-hash"], title)
+            query = _intent_sigma(intent, title)
         else:
             raise GenerationUnavailable("CrowdStrike query grammar verification is pending.")
         return GeneratedRule(name=name + suffix, query=query)
