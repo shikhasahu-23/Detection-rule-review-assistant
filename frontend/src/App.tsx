@@ -64,7 +64,7 @@ function App() {
   const [intentDescription, setIntentDescription] = useState("");
   const [intentBehavior, setIntentBehavior] = useState("");
   const [attackTechniqueIds, setAttackTechniqueIds] = useState("");
-  const [targetPlatforms, setTargetPlatforms] = useState<string[]>(["splunk", "sentinel", "chronicle"]);
+  const [targetPlatforms, setTargetPlatforms] = useState<string[]>(["splunk", "sentinel", "chronicle", "sigma"]);
   const [creatingIntent, setCreatingIntent] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [attackTechniques, setAttackTechniques] = useState<AttackTechnique[]>([]);
@@ -551,7 +551,7 @@ function App() {
         <section className="panel" style={{marginTop:16,padding:15}}>
           <b>How to use it</b>
           <p className="muted" style={{marginTop:7}}>1. Describe the activity you want to detect. 2. Add the ATT&amp;CK technique IDs if known. 3. Choose the platforms. 4. Generate and copy the query you need.</p>
-          <p className="muted" style={{marginTop:7}}>Available query languages: Splunk SPL, Microsoft Sentinel KQL and Chronicle YARA-L. Queries use your intent's telemetry fields. Confirm those fields match your own data source before deploying.</p>
+          <p className="muted" style={{marginTop:7}}>Available formats: Splunk SPL, Microsoft Sentinel KQL, Chronicle YARA-L 2.0 and Sigma YAML. Queries use your intent's telemetry fields. Confirm those fields match your own data source before deploying.</p>
         </section>
         <section className="columns">
           <article className="panel"><div className="panelhead"><div><b>Create detection intent</b><p>Define behavior and telemetry before generating queries.</p></div></div>
