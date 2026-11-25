@@ -1,0 +1,79 @@
+name: Scheduled threat intelligence jobs
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+    - cron: "0 3 * * *"
+    - cron: "0 4 * * *"
+    - cron: "0 5 * * *"
+  workflow_dispatch:
+    inputs:
+      job:
+        description: Job to run manually
+        required: true
+        type: choice
+        options:
+          - cisa-kev
+          - nvd-cves
+          - mitre-attack
+          - pipeline
+
+permissions:
+  contents: read
+
+jobs:
+  cisa-kev:
+    if: github.event.schedule == '0 2 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'cisa-kev')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run CISA KEV sync
+        env:
+          API_BASE_URL: https://detectionops-api.onrender.com
+          SCHEDULER_SECRET: ${{ secrets.THREATWEAVE_SCHEDULER_SECRET }}
+        run: |
+          test -n "$SCHEDULER_SECRET"
+          curl --fail-with-body --silent --show-error --max-time 900 \
+            -X POST "$API_BASE_URL/internal/scheduler/run/cisa-kev" \
+            -H "X-Scheduler-Secret: $SCHEDULER_SECRET"
+
+  nvd-cves:
+    if: github.event.schedule == '0 3 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'nvd-cves')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run NVD CVE sync
+        env:
+          API_BASE_URL: https://detectionops-api.onrender.com
+          SCHEDULER_SECRET: ${{ secrets.THREATWEAVE_SCHEDULER_SECRET }}
+        run: |
+          test -n "$SCHEDULER_SECRET"
+          curl --fail-with-body --silent --show-error --max-time 900 \
+            -X POST "$API_BASE_URL/internal/scheduler/run/nvd-cves" \
+            -H "X-Scheduler-Secret: $SCHEDULER_SECRET"
+
+  mitre-attack:
+    if: github.event.schedule == '0 4 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'mitre-attack')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run MITRE ATT&CK sync
+        env:
+          API_BASE_URL: https://detectionops-api.onrender.com
+          SCHEDULER_SECRET: ${{ secrets.THREATWEAVE_SCHEDULER_SECRET }}
+        run: |
+          test -n "$SCHEDULER_SECRET"
+          curl --fail-with-body --silent --show-error --max-time 900 \
+            -X POST "$API_BASE_URL/internal/scheduler/run/mitre-attack" \
+            -H "X-Scheduler-Secret: $SCHEDULER_SECRET"
+
+  pipeline:
+    if: github.event.schedule == '0 5 * * *' || (github.event_name == 'workflow_dispatch' && inputs.job == 'pipeline')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run intelligence pipeline
+        env:
+          API_BASE_URL: https://detectionops-api.onrender.com
+          SCHEDULER_SECRET: ${{ secrets.THREATWEAVE_SCHEDULER_SECRET }}
+        run: |
+          test -n "$SCHEDULER_SECRET"
+          curl --fail-with-body --silent --show-error --max-time 900 \
+            -X POST "$API_BASE_URL/internal/scheduler/run/pipeline" \
+            -H "X-Scheduler-Secret: $SCHEDULER_SECRET"
