@@ -57,6 +57,9 @@ def run_intelligence_pipeline(
         "nvd_cves": sync_nvd_cves,
         "urlhaus": lambda session: sync_public_feed(session, "urlhaus"),
         "feodo_tracker": lambda session: sync_public_feed(session, "feodo"),
+        "openphish": lambda session: sync_public_feed(session, "openphish"),
+        "sslbl": lambda session: sync_public_feed(session, "sslbl"),
+
         "mitre_attack": sync_attack_catalog,
     }
     stage_results: dict = {}
