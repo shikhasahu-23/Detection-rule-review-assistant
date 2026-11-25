@@ -16,8 +16,6 @@ ENTITY_TYPES = {
     "tool": "tool",
     "infrastructure": "infrastructure",
     "vulnerability": "vulnerability",
-    "threat-actor": "threat_actor",
-    "campaign": "campaign",
 }
 MAX_STIX_OBJECTS = 5000
 MAX_CONFIDENCE = 100
