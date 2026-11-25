@@ -89,6 +89,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          BASE="https://detectionops-api.onrender.com"
           python - <<'PY'
           import json
           import urllib.request
@@ -166,7 +167,6 @@ jobs:
           jq -e 'length > 0' /tmp/feeds.json >/dev/null
           jq -e 'length > 0' /tmp/runs.json >/dev/null
           jq -e 'length > 0' /tmp/attack.json >/dev/null
-          jq -e 'length > 0' /tmp/graph.json | grep -q . || true
           jq -e '.nodes | length > 0' /tmp/graph.json >/dev/null
           jq -e 'length > 0' /tmp/intents.json >/dev/null
           jq -e 'length > 0' /tmp/rules.json >/dev/null
@@ -174,7 +174,7 @@ jobs:
           jq -e 'length > 0' /tmp/opportunities.json >/dev/null
 
           echo "PASS Overview: $(jq -r '.active_indicators' /tmp/summary.json) active indicators"
-          echo "PASS Threat intelligence: $(jq length /tmp.indicators.json 2>/dev/null || jq length /tmp/indicators.json) indicators, $(jq length /tmp/feeds.json) feeds"
+          echo "PASS Threat intelligence: $(jq length /tmp/indicators.json) indicators, $(jq length /tmp/feeds.json) feeds"
           echo "PASS Correlation: $(jq length /tmp/opportunities.json) opportunities"
           echo "PASS Threat graph: $(jq '.nodes|length' /tmp/graph.json) entities, $(jq '.edges|length' /tmp/graph.json) relationships"
           echo "PASS ATT&CK catalog: $(jq length /tmp/attack.json) techniques returned"
