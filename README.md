@@ -5,8 +5,8 @@ A team-oriented, threat-intelligence-driven detection engineering platform.
 ThreatWeave brings the threat intelligence and detection engineering lifecycle together: intelligence ingestion, enrichment and correlation, AI-assisted detection generation, deterministic validation, human review, versioned rule management, and controlled export.
 
 ## Product decisions
-- Hybrid AI generation with deterministic validation.
-- Multi-provider LLM architecture (OpenAI selected as the initial provider; provider abstraction allows future approved providers).
+- Free deterministic template generation with deterministic validation; no paid AI API or key required.
+- Optional AI providers may be added later, but are not part of the default generation path.
 - Reputable public intelligence sources plus configurable custom feeds (CISA KEV and NVD CVE connectors currently implemented).
 - Daily ingestion and enrichment.
 - Automatically generate candidate rules and proposed updates; require human review and approval.
@@ -28,7 +28,7 @@ ThreatWeave brings the threat intelligence and detection engineering lifecycle t
 5. Check API health at `http://localhost:8000/health` and readiness at `http://localhost:8000/ready`.
 6. Celery Beat schedules daily CISA KEV (02:00 UTC), NVD CVE (03:00 UTC), and MITRE ATT&CK (04:00 UTC) ingestion; the worker executes jobs. Keep a single Beat instance.
 
-Do not commit `.env` or real API credentials. To use AI-assisted detection generation, set `OPENAI_API_KEY` and optionally `OPENAI_MODEL` in the local `.env` after reviewing the provider's data-handling terms. The Rule Generator creates draft candidates only; every candidate requires analyst review and vendor-side validation.
+Do not commit `.env` or real API credentials. The default Rule Generator uses free deterministic templates for Splunk SPL, Microsoft Sentinel KQL and Chronicle YARA-L; no API key or paid AI service is required. Templates use fields supplied in each detection intent and known behavior keywords. They are starting points, not a substitute for confirming your actual log schema. CrowdStrike generation is disabled until its query grammar is verified. Every candidate requires analyst review and vendor-side validation.
 
 ## Documentation
 - [Architecture](docs/ARCHITECTURE.md)
