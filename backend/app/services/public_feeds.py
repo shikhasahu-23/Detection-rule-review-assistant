@@ -5,6 +5,7 @@ it never visits, resolves, or executes an indicator URL.
 """
 from __future__ import annotations
 
+import csv
 import ipaddress
 from datetime import UTC, datetime
 from urllib.error import HTTPError, URLError
@@ -24,6 +25,23 @@ FEEDS = {
         "confidence": 95,
         "severity": "high",
         "tags": ["urlhaus", "malware-distribution"],
+    },
+    "openphish": {
+        "name": "OpenPhish Community",
+        "url": "https://raw.githubusercontent.com/openphish/public_feed/refs/heads/main/feed.txt",
+        "type": "url",
+        "confidence": 85,
+        "severity": "high",
+        "tags": ["openphish", "phishing"],
+    },
+    "sslbl": {
+        "name": "abuse.ch SSLBL",
+        "url": "https://sslbl.abuse.ch/blacklist/sslipblacklist.csv",
+        "type": "ip",
+        "confidence": 90,
+        "severity": "high",
+        "tags": ["sslbl", "malicious-tls-c2"],
+        "format": "csv_ip",
     },
     "feodo": {
         "name": "Feodo Tracker",
@@ -74,10 +92,17 @@ def sync_public_feed(db: Session, feed_key: str, text_payload: str | None = None
         if not isinstance(payload, str) or not payload.strip():
             raise TypeError("Feed response was empty or invalid")
         seen = created_indicators = created_evidence = rejected = 0
-        for line in payload.splitlines():
-            value = _valid_value(config["type"], line)
-            if value is None:
-                continue
+        values = []
+        if config.get("format") == "csv_ip":
+            for row in csv.reader(payload.splitlines()):
+                for field in row:
+                    candidate = _valid_value("ip", field.strip().strip(chr(34)))
+                    if candidate:
+                        values.append(candidate)
+        else:
+            values = [value for line in payload.splitlines()
+                      if (value := _valid_value(config["type"], line)) is not None]
+        for value in values:
             seen += 1
             indicator = db.scalar(select(Indicator).where(
                 Indicator.indicator_type == config["type"], Indicator.value == value
