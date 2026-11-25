@@ -11,7 +11,7 @@ type Indicator = { id: string; indicator_type: string; value: string; confidence
 type Feed = { name: string; status: string; last_run: string; records_seen: number; indicators_created: number };
 type DetectionIntent = { id: string; title: string; description: string; behavior: string; severity: string; target_platforms: string[]; attack_techniques?: string[]; status: string };
 type TestRun = { id:string; status:string; total_cases:number; passed_cases:number; failed_cases:number; case_results:{name:string;scenario_type:string;status:string;checks:{operator:string;value:string;passed:boolean}[]}[]; regression_report:{status:string;regressions:string[];improvements:string[]} };
-type RuleCandidate = { id: string; name: string; platform: string; query: string; version: number; status: string; validation_status: string; validation_report: { errors: {code:string;message:string}[]; warnings: {code:string;message:string}[]; is_deployable: boolean; telemetry_coverage?: {score:number|null;status:string;matched_requirements:number;total_requirements:number} }; generation_metadata: {provider?:string;model?:string;prompt_version?:string;generated_at?:string;validation_scope?:string}; generator: string };
+type RuleCandidate = { id: string; intent_id: string; name: string; platform: string; query: string; version: number; status: string; validation_status: string; validation_report: { errors: {code:string;message:string}[]; warnings: {code:string;message:string}[]; is_deployable: boolean; telemetry_coverage?: {score:number|null;status:string;matched_requirements:number;total_requirements:number} }; generation_metadata: {provider?:string;model?:string;prompt_version?:string;generated_at?:string;validation_scope?:string}; generator: string };
 type AttackTechnique = { id: string; external_id: string; name: string; description: string; platforms: string[]; tactics: string[]; is_subtechnique: boolean; revoked: boolean; deprecated: boolean; source_url: string };
 type PipelineRun = { run_id: string; status: string; trigger: string; indicators_enriched: number; opportunities_found: number; candidates_created: number; candidates_skipped: number; started_at: string; completed_at: string | null; error_message: string | null; stage_results: Record<string, {status: string; reason?: string; error?: string}> };
 type ThreatNode = { id: string; entity_type: string; external_id: string; name: string; description?: string; confidence: number; source_name: string; source_reference: string; source_url: string | null; revoked: boolean; deprecated: boolean };
@@ -235,7 +235,7 @@ function App() {
 
   const loadRuleLibrary = useCallback(async () => {
     try {
-      const params = new URLSearchParams({ limit: "100", offset: String(libraryOffset) });
+      const params = new URLSearchParams({ limit: "500", offset: String(libraryOffset) });
       if (libraryQuery.trim()) params.set("q", libraryQuery.trim());
       if (libraryPlatform) params.set("platform", libraryPlatform);
       if (libraryValidation) params.set("validation_status", libraryValidation);
@@ -248,8 +248,13 @@ function App() {
   }, [libraryQuery, libraryPlatform, libraryValidation, libraryOffset]);
 
   useEffect(() => {
-    if (page === "Rule library") { void loadRuleLibrary(); void loadDetectionData(); }
-  }, [page, loadRuleLibrary]);
+    if (page === "Rule library") {
+      void (async () => {
+        await Promise.all([loadDetectionData(), loadAttackCatalog()]);
+        await loadRuleLibrary();
+      })();
+    }
+  }, [page, loadRuleLibrary, loadDetectionData, loadAttackCatalog]);
 
   const runCandidateTests = async (candidateId: string) => {
     setRunningTests(current => ({...current,[candidateId]:true}));
