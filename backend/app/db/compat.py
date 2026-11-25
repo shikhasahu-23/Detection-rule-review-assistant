@@ -53,13 +53,18 @@ def ensure_threat_graph_schema(engine: Engine) -> None:
 
         # Backfill old rows before enforcing the current natural key. This is
         # idempotent and preserves legacy names as their external identifiers.
-        connection.exec_driver_sql(
-            """
-            UPDATE threat_entities
-            SET external_id = COALESCE(NULLIF(normalized_name, ''), id::text)
-            WHERE external_id = ''
-            """
-        )
+        if "normalized_name" in existing:
+            connection.exec_driver_sql(
+                """
+                UPDATE threat_entities
+                SET external_id = COALESCE(NULLIF(normalized_name, ''), id::text)
+                WHERE external_id = ''
+                """
+            )
+        else:
+            connection.exec_driver_sql(
+                "UPDATE threat_entities SET external_id = id::text WHERE external_id = ''"
+            )
 
         unique_names = {
             constraint["name"]
