@@ -46,3 +46,20 @@ def test_empty_public_feed_is_rejected_and_recorded():
     else:
         raise AssertionError("empty feed should fail")
     assert db.scalar(select(FeedRun).where(FeedRun.status == "failed")) is not None
+
+
+def test_openphish_ingestion():
+    db = make_session()
+    result = sync_public_feed(db, "openphish", "https://phishing.example/login\n")
+    assert result["records_seen"] == 1
+    assert db.scalar(select(SourceEvidence)).source_name == "OpenPhish Community"
+
+
+def test_sslbl_csv_ingestion():
+    db = make_session()
+    payload = '# Comment\n"2026-01-01","203.0.113.10","443","malware"\n'
+    result = sync_public_feed(db, "sslbl", payload)
+    assert result["records_seen"] == 1
+    indicator = db.scalar(select(Indicator))
+    assert indicator.indicator_type == "ip"
+    assert indicator.value == "203.0.113.10"
