@@ -170,16 +170,16 @@ function App() {
 
   const loadDetectionData = useCallback(async () => {
     try {
-      if (page === "Rule library") {
-        const response = await fetch(`${API}/api/v1/rules?limit=100&offset=${libraryOffset}`);
-        if (!response.ok) throw new Error("Unable to load the rule library.");
-        setCandidates(await response.json());
-        return;
-      }
       const response = await fetch(`${API}/api/v1/detection-intents?limit=100`);
       if (!response.ok) throw new Error("Unable to load detection intents.");
       const items: DetectionIntent[] = await response.json();
       setIntents(items);
+      if (page === "Rule library") {
+        const rulesResponse = await fetch(`${API}/api/v1/rules?limit=100&offset=${libraryOffset}`);
+        if (!rulesResponse.ok) throw new Error("Unable to load the rule library.");
+        setCandidates(await rulesResponse.json());
+        return;
+      }
       const currentId = selectedIntentId || items[0]?.id || "";
       if (!selectedIntentId && currentId) setSelectedIntentId(currentId);
       if (currentId) {
