@@ -31,14 +31,15 @@ jobs:
         run: |
           set -euo pipefail
           BASE="https://detectionops-api.onrender.com"
-          STARTED_AT="$(date -u +%s)"
+          curl --fail --silent --show-error "${BASE}/api/v1/intelligence/pipeline/runs?limit=1" -o /tmp/before.json
+          BASELINE_RUN_ID="$(jq -r '.[0].run_id // empty' /tmp/before.json)"
           curl --fail --silent --show-error -X POST "${BASE}/api/v1/intelligence/pipeline/runs" -o /tmp/started.json
           cat /tmp/started.json
           echo "Waiting for the pipeline run to finish..."
 
           for attempt in $(seq 1 120); do
             curl --fail --silent --show-error "${BASE}/api/v1/intelligence/pipeline/runs?limit=10" -o /tmp/runs.json
-            RUN="$(jq -c --argjson started "${STARTED_AT}" '[.[] | select((.started_at | fromdateiso8601?) >= $started)] | .[0] // empty' /tmp/runs.json)"
+            RUN="$(jq -c --arg baseline "${BASELINE_RUN_ID}" '[.[] | select(.run_id != $baseline)] | .[0] // empty' /tmp/runs.json)"
             if [[ -n "${RUN}" ]]; then
               STATUS="$(jq -r '.status // empty' <<< "${RUN}")"
               if [[ "${STATUS}" == "succeeded" || "${STATUS}" == "partial_success" || "${STATUS}" == "failed" ]]; then
