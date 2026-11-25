@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://detection_app:change-me-locally@localhost:5432/detection_assistant"
     redis_url: str = "redis://localhost:6379/0"
     cors_origins: str = "http://localhost:5173"
+    scheduler_secret: str | None = None
     llm_default_provider: str | None = "openai"
     openai_api_key: str | None = None
     openai_model: str = "gpt-4.1-mini"
