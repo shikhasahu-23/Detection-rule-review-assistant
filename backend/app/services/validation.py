@@ -1,10 +1,7 @@
 """Conservative static checks for candidate query text."""
-from app.schemas.detection import TargetPlatform
+import yaml
 
-try:
-    import yaml
-except ImportError:
-    yaml = None
+from app.schemas.detection import TargetPlatform
 from app.services.coverage import score_telemetry_coverage
 
 
