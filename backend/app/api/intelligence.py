@@ -17,6 +17,7 @@ from app.services.custom_csv import sync_custom_csv
 from app.services.enrichment import detection_opportunities, enrich_indicator
 from app.services.mitre_attack import sync_attack_catalog
 from app.services.nvd import sync_nvd_cves
+from app.services.public_feeds import sync_public_feed
 from app.services.threat_graph import ENTITY_TYPES, import_stix_bundle
 from app.tasks.pipeline import execute_pipeline
 
