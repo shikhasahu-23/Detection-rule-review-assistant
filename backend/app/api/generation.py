@@ -50,6 +50,7 @@ def generate_candidates(intent_id: UUID, payload: GenerationRequest, db: DbSessi
         "test_scenarios": intent.test_scenarios,
     }
     generated = []
+    provider_name = getattr(provider, "provider_name", type(provider).__name__.lower())
     try:
         for platform in platforms:
             generated.append((platform, provider.generate(intent_data, platform)))
@@ -72,13 +73,13 @@ def generate_candidates(intent_id: UUID, payload: GenerationRequest, db: DbSessi
             validation_status=report["status"],
             validation_report=report,
             generation_metadata={
-                "provider": "openai",
+                "provider": provider_name,
                 "model": getattr(provider, "model", "configured-provider"),
                 "prompt_version": get_platform_contract(platform).prompt_version,
                 "generated_at": datetime.now(UTC).isoformat(),
                 "validation_scope": get_platform_contract(platform).validation_scope,
             },
-            generator="openai",
+            generator=provider_name,
         ))
     db.add_all(candidates)
     db.commit()
