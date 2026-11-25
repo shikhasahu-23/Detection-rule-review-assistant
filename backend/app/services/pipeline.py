@@ -116,6 +116,22 @@ def run_intelligence_pipeline(
         stage_results["correlation"] = {"status": "failed", "error": message}
         failures.append(f"correlation: {message}")
 
+    try:
+        if provider is None:
+            stage_results["ioc_rule_sync"] = sync_ioc_rules(db)
+            if stage_results["ioc_rule_sync"].get("status") == "partial":
+                failures.append("IOC rule synchronization had generation failures")
+        else:
+            stage_results["ioc_rule_sync"] = {
+                "status": "skipped",
+                "reason": "A test/custom generation provider was injected; IOC sync uses the production template provider.",
+            }
+    except Exception as exc:  # noqa: BLE001 - keep other stages available
+        db.rollback()
+        message = f"{type(exc).__name__}: {str(exc)[:400]}"
+        stage_results["ioc_rule_sync"] = {"status": "failed", "error": message}
+        failures.append(f"ioc_rule_sync: {message}")
+
     created = skipped = 0
     generation_errors: list[str] = []
     try:
