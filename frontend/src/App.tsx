@@ -685,9 +685,9 @@ function App() {
           </article>) : <p className="no-data">No generated queries for this use case yet. Select one or more languages and generate.</p>}
         </section>
       </> : page === "Rule library" ? <>
-        <section className="banner"><Database/><div><b>Searchable detection rule library</b><p>Browse generated and manually authored candidate versions across detection intents. All entries remain non-approved and non-deployable.</p></div><span>CATALOG</span></section>
+        <section className="banner"><Database/><div><b>Detection rule library · one use case, versioned queries</b><p>Rules are grouped by detection use case and language. Select a version to compare older drafts without repeating the use-case name.</p></div><span>VERSIONED</span></section>
         <section className="panel intel-panel">
-          <div className="panelhead"><div><b>Rule library</b><p>Find rules by MITRE tactic, technique or query language.</p></div><span>{candidates.length} results</span></div>
+          <div className="panelhead"><div><b>Rule library</b><p>Find a use case, then choose the language and version you need.</p></div><span>{libraryGroups.length} use cases · {filteredLibraryCandidates.length} versions</span></div>
           <div className="searchbar"><Search size={16}/><input value={libraryQuery} onChange={e=>{setLibraryQuery(e.target.value);setLibraryOffset(0);}} placeholder="Search rule names or query text…"/></div>
           <div className="library-filters">
             <select value={libraryTactic} onChange={e=>setLibraryTactic(e.target.value)}><option value="">All tactics</option>{[...new Set(attackTechniques.flatMap(x=>x.tactics))].sort().map(t=><option key={t} value={t}>{t.replaceAll("_"," ")}</option>)}</select>
@@ -696,8 +696,22 @@ function App() {
             
             <button onClick={()=>void loadRuleLibrary()}><RefreshCw size={15}/> Refresh</button>
           </div>
-          {candidates.filter(candidate=>{const intent=intents.find(x=>x.id===candidate.intent_id);const techniques=intent?.attack_techniques||[];const tacticMatch=!libraryTactic||techniques.some(id=>attackTechniques.some(t=>t.external_id===id&&t.tactics.includes(libraryTactic)));const techniqueMatch=!libraryTechnique||techniques.includes(libraryTechnique);const queryMatch=!libraryQuery||candidate.name.toLowerCase().includes(libraryQuery.toLowerCase())||candidate.query.toLowerCase().includes(libraryQuery.toLowerCase());const platformMatch=!libraryPlatform||candidate.platform===libraryPlatform;return tacticMatch&&techniqueMatch&&queryMatch&&platformMatch;}).map(candidate=><article className="candidate-card" key={candidate.id}><div className="candidate-title"><div><b>{candidate.name}</b><small>{candidate.platform.toUpperCase()} · Version {candidate.version} · {candidate.generator==="ioc-intel"?"Threat-intel maintained":candidate.generator}</small></div><button className="copy-query" onClick={()=>navigator.clipboard?.writeText(candidate.query).then(()=>setNotice("Query copied to clipboard."))}>Copy query</button></div><pre>{candidate.query}</pre><small className="muted">ATT&amp;CK: {(intents.find(x=>x.id===candidate.intent_id)?.attack_techniques||[]).join(", ")||"Not mapped"}</small></article>)}
-          {candidates.length===0&&<p className="no-data">No rules match the selected filters.</p>}
+          {libraryGroups.map(group=><article className="library-usecase" key={group.key}>
+            <div className="library-usecase-head"><div><b>{group.title}</b><small>{group.candidates[0]?.name} · {group.candidates.length} language/version records</small></div><span>USE CASE</span></div>
+            <div className="library-platform-grid">{Object.entries(group.candidates.reduce<Record<string, RuleCandidate[]>>((byPlatform, candidate) => { (byPlatform[candidate.platform] ||= []).push(candidate); return byPlatform; }, {})).map(([platform, versions])=>{
+              const ordered=[...versions].sort((a,b)=>b.version-a.version);
+              const selectionKey=group.key+"::"+platform;
+              const selected=ordered.find(item=>item.version===libraryVersionSelection[selectionKey])||ordered[0];
+              const platformName=platform==="sentinel"?"Microsoft Sentinel KQL":platform==="chronicle"?"Google SecOps YARA-L 2.0":platform==="sigma"?"Sigma YAML":platform==="crowdstrike"?"CrowdStrike":"Splunk SPL";
+              return <section className={"library-platform language-"+platform} key={platform}>
+                <div className="library-platform-head"><b>{platformName}</b><label>VERSION <select value={selected.version} onChange={e=>setLibraryVersionSelection(old=>({...old,[selectionKey]:Number(e.target.value)}))}>{ordered.map(version=><option key={version.id} value={version.version}>v{version.version}{version===ordered[0]?" · Latest":""}</option>)}</select></label></div>
+                <div className="library-platform-meta"><span>{selected.generator==="ioc-intel"?"Threat-intel maintained":selected.generator}</span><span>{selected.validation_status}</span></div>
+                <pre>{selected.query}</pre><button className="copy-query" onClick={()=>navigator.clipboard?.writeText(selected.query).then(()=>setNotice("Query copied to clipboard."))}>Copy {platformName} query</button>
+              </section>;
+            })}</div>
+            <small className="muted">ATT&amp;CK: {(intents.find(x=>x.id===group.candidates[0]?.intent_id)?.attack_techniques||[]).join(", ")||"Not mapped"}</small>
+          </article>)}
+          {filteredLibraryCandidates.length===0&&<p className="no-data">No rules match the selected filters.</p>}
           <div className="library-pagination"><button disabled={libraryOffset===0} onClick={()=>setLibraryOffset(x=>Math.max(0,x-100))}>Previous</button><span>Showing {libraryOffset+1}–{libraryOffset+candidates.length}</span><button disabled={candidates.length<100} onClick={()=>setLibraryOffset(x=>x+100)}>Next</button></div>
         </section>
       </> : page === "Effectiveness" ? <>
