@@ -1,1 +1,1 @@
-[{"name":"CISA KEV","status":"succeeded","last_run":"2026-11-26T15:00:39.077191+00:00","records_seen":1805,"indicators_created":1805},{"name":"MITRE ATT&CK Enterprise","status":"succeeded","last_run":"2026-11-26T15:00:39.571528+00:00","records_seen":706,"indicators_created":0}]
+[{"name":"CISA KEV","status":"succeeded","last_run":"2026-11-26T15:32:49.709967+00:00","records_seen":1805,"indicators_created":1805},{"name":"MITRE ATT&CK Enterprise","status":"succeeded","last_run":"2026-11-26T15:32:50.315249+00:00","records_seen":706,"indicators_created":0}]
