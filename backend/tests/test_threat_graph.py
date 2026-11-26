@@ -27,6 +27,8 @@ def sample_bundle():
                 "name": "Example Threat Actor",
                 "description": "A test actor from a trusted fixture.",
                 "confidence": 85,
+                "severity": "critical",
+                "impact": "Credential theft and lateral movement.",
                 "created": "2025-01-01T00:00:00Z",
                 "modified": "2025-02-01T00:00:00Z",
                 "external_references": [{"source_name": "Example", "url": "https://example.org/actor"}],
@@ -74,8 +76,11 @@ def test_stix_import_creates_entities_and_provenance_backed_relationships():
     assert result["objects_skipped"] == 1
     assert len(entities) == 2
     assert len(evidence) == 2
-    assert entities[0].source_name == "Partner CTI"
-    assert entities[0].confidence == 70 or entities[0].confidence == 85
+    actor = next(entity for entity in entities if entity.entity_type == "threat_actor")
+    assert actor.source_name == "Partner CTI"
+    assert actor.confidence == 85
+    assert actor.severity == "critical"
+    assert actor.impact == "Credential theft and lateral movement."
     assert relationships[0].relationship_type == "uses"
     assert relationships[0].confidence == 90
     assert relationships[0].assertion_status == "source_observed"
@@ -141,3 +146,41 @@ def test_entity_evidence_is_preserved_across_multiple_sources():
     )).all()
     assert len(evidence) == 2
     assert {row.source_name for row in evidence} == {"Partner One", "Partner Two"}
+
+
+
+def test_missing_stix_confidence_severity_and_impact_remain_unknown():
+    db = make_session()
+    bundle = sample_bundle()
+    actor = bundle["objects"][0]
+    actor.pop("confidence")
+    actor.pop("severity")
+    actor.pop("impact")
+    bundle["objects"] = [actor]
+    import_stix_bundle(db, bundle, source_name="Feed without scoring")
+
+    entity = db.scalar(select(ThreatEntity))
+    evidence = db.scalar(select(ThreatEntityEvidence))
+    assert entity.confidence is None
+    assert evidence.confidence is None
+    assert entity.severity is None
+    assert entity.impact is None
+
+
+def test_vulnerability_severity_can_be_classified_from_explicit_cvss_score():
+    db = make_session()
+    bundle = {
+        "type": "bundle",
+        "objects": [{
+            "type": "vulnerability",
+            "spec_version": "2.1",
+            "id": "vulnerability--66666666-6666-4666-8666-666666666666",
+            "name": "Example CVE",
+            "x_cvss_v3_base_score": 9.8,
+        }],
+    }
+    import_stix_bundle(db, bundle, source_name="NVD-like source")
+    entity = db.scalar(select(ThreatEntity))
+    assert entity.severity == "critical"
+    assert entity.confidence is None
+    assert entity.impact is None
