@@ -8,6 +8,7 @@ on:
     branches: [main]
     paths:
       - "scripts/refresh_static_intelligence.py"
+      - "scripts/refresh_public_news.py"
       - ".github/workflows/refresh-static-intelligence.yml"
 
 permissions:
