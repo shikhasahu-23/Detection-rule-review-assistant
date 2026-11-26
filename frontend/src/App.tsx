@@ -602,6 +602,12 @@ function App() {
         </section>
       </> : page === "ATT&CK catalog" ? <>
         <section className="banner catalog-banner"><ShieldCheck/><div><b>MITRE ATT&CK Enterprise · your detection coverage map</b><p>Use this catalogue to understand attacker behaviours, map them to tactics, and identify which techniques your detections should cover.</p></div><span>{attackTechniques.length} TECHNIQUES</span></section>
+        <section className="stats catalog-stats">
+          <article><div>Active techniques<ShieldCheck size={17}/></div><strong>{attackTechniques.filter(item=>!item.revoked&&!item.deprecated).length.toLocaleString()}</strong><small>Current behaviours in the catalog</small></article>
+          <article><div>ATT&CK tactics<Network size={17}/></div><strong>{new Set(attackTechniques.flatMap(item=>item.tactics)).size}</strong><small>Adversary goals represented</small></article>
+          <article><div>Sub-techniques<Layers3 size={17}/></div><strong>{attackTechniques.filter(item=>item.is_subtechnique&&!item.revoked&&!item.deprecated).length.toLocaleString()}</strong><small>Specific behaviour variants</small></article>
+          <article><div>Platforms<Database size={17}/></div><strong>{new Set(attackTechniques.flatMap(item=>item.platforms)).size}</strong><small>Platforms represented in ATT&CK</small></article>
+        </section>
         <section className="catalog-guide">
           <article><b>Why use this catalogue?</b><p>Translate threat activity into a shared language for threat hunting, detection engineering and coverage discussions.</p></article>
           <article><b>Tactic = attacker goal</b><p>The objective an adversary is trying to achieve, such as Initial Access, Execution or Exfiltration.</p></article>
@@ -753,9 +759,12 @@ function App() {
                   const selected=ordered.find(item=>item.version===libraryVersionSelection[selectionKey])||ordered[0];
                   const selectedIntent=intents.find(x=>x.id===selected.intent_id);
                   const mappedTechniques=(selectedIntent?.attack_techniques||[]).map(id=>({id,detail:attackTechniques.find(t=>t.external_id===id)}));
-                  const mappedTactics=[...new Set(mappedTechniques.flatMap(item=>item.detail?.tactics||[]))];
-                  const platformName=platform==="sentinel"?"Microsoft Sentinel KQL":platform==="chronicle"?"Google SecOps YARA-L 2.0":platform==="sigma"?"Sigma YAML":platform==="crowdstrike"?"CrowdStrike":"Splunk SPL";
                   const isIoc=selected.generator==="ioc-intel";
+                  const batchKind=(selectedIntent?.title||"").match(/^ThreatWeave Active IOC Coverage:\\s*([a-z0-9_-]+):/i)?.[1]?.toLowerCase()||"";
+                  const contextualExploitTechnique=isIoc&&batchKind.startsWith("cve")?attackTechniques.find(t=>t.external_id==="T1190"):undefined;
+                  const effectiveMappedTechniques=mappedTechniques.length?mappedTechniques:contextualExploitTechnique?[{id:"T1190",detail:contextualExploitTechnique}]:[];
+                  const mappedTactics=[...new Set(effectiveMappedTechniques.flatMap(item=>item.detail?.tactics||[]))];
+                  const platformName=platform==="sentinel"?"Microsoft Sentinel KQL":platform==="chronicle"?"Google SecOps YARA-L 2.0":platform==="sigma"?"Sigma YAML":platform==="crowdstrike"?"CrowdStrike":"Splunk SPL";
                   return <section className={"library-platform language-"+platform} key={platform}>
                     <div className="library-platform-head"><b>{platformName}</b><label>VERSION <select value={selected.version} onChange={e=>setLibraryVersionSelection(old=>({...old,[selectionKey]:Number(e.target.value)}))}>{ordered.map(version=><option key={version.id} value={version.version}>v{version.version}{version===ordered[0]?" · Latest":""}</option>)}</select></label></div>
                     <div className="library-platform-meta"><span>{isIoc?"Threat-intel maintained":selected.generator}</span><span>{selected.validation_status}</span></div>
@@ -763,7 +772,7 @@ function App() {
                     <button className="copy-query" onClick={()=>navigator.clipboard?.writeText(selected.query).then(()=>setNotice("Query copied to clipboard."))}>Copy {platformName} query</button>
                     <div className="rule-attack-context">
                       <div><b>MITRE tactics</b><p>{mappedTactics.length?mappedTactics.map(t=>t.replaceAll("_"," ")).join(" · "):isIoc?"Not directly applicable — IOC matching detects indicator presence, not an adversary tactic.":"Mapping required — no tactic is currently linked to this use case."}</p></div>
-                      <div><b>MITRE techniques</b><p>{mappedTechniques.length?mappedTechniques.map(item=>`${item.id}${item.detail? ` · ${item.detail.name}`:""}`).join(" · "):isIoc?"Not directly applicable — map a technique only when the underlying telemetry and detection logic identify a specific adversary behaviour.":"Mapping required — add ATT&CK technique IDs to this use case to complete its mapping."}</p></div>
+                      <div><b>MITRE techniques</b><p>{effectiveMappedTechniques.length?effectiveMappedTechniques.map(item=>`${item.id}${item.detail? ` · ${item.detail.name}`:""}`).join(" · "):isIoc?"Not inferable from an IOC match alone — add behaviour-specific mapping when telemetry supports it.":"Mapping required — add ATT&CK technique IDs to this use case to complete its mapping."}</p></div>
                     </div>
                   </section>;
                 })}</div>
