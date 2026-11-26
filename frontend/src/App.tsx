@@ -73,7 +73,7 @@ type PipelineRun = { run_id: string; status: string; trigger: string; indicators
 type ThreatNode = { id: string; entity_type: string; external_id: string; name: string; description?: string; impact: string | null; source_name: string; source_reference: string; source_url: string | null; revoked: boolean; deprecated: boolean };
 type ThreatEdge = { id: string; source: string; target: string; relationship_type: string; assertion_status: string; source_name: string; source_reference: string; source_url: string | null };
 type ThreatGraph = { nodes: ThreatNode[]; edges: ThreatEdge[]; truncated: boolean };
-type CyberNews = { id:string; headline:string; summary:string; impact:string; severity:string; source:string; url:string; published_at:string };
+type CyberNews = { id:string; headline:string; summary:string; impact:string; severity:string; source:string; url:string; published_at:string; event_type?:string; related_cves?:string[]; mentioned_threat_actors?:string[]; malware_or_tooling?:string[]; attack_vectors?:string[]; defender_actions?:string[]; analysis_note?:string };
 type Opportunity = { intent_id: string; title: string; severity: string; status: string; target_platforms: string[]; association_type: string; indicators: { indicator_id: string; indicator_type: string; value: string; confidence: number; severity: string; freshness: string; evidence_count: number; match_basis: string[] }[]; matched_techniques: string[]; matched_cves: string[]; indicator_count: number; evidence_count: number; rationale: string };
 
 const LOCAL_INTENTS_KEY = "threatweave:local-detection-intents:v1";
