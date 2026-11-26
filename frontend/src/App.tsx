@@ -462,7 +462,6 @@ function App() {
   const graphHighConfidence = graphVisibleNodes.filter(node => node.confidence !== null && node.confidence >= 80).length;
   const graphUnknownConfidence = graphVisibleNodes.filter(node => node.confidence === null).length;
   const graphCriticalSeverity = graphVisibleNodes.filter(node => node.severity === "critical").length;
-  const graphCurrentCount = graphVisibleNodes.filter(node => !node.revoked && !node.deprecated).length;
 
   const stats = [
     { label: "Active intelligence", value: summary?.active_indicators ?? "—", note: "Active indicators stored", icon: Radar },
