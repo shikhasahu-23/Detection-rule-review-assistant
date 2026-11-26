@@ -765,8 +765,20 @@ function App() {
             }).map(item=><article className={`news-card severity-border-${item.severity}`} key={item.id}>
               <div className="news-card-top"><span className={`news-severity ${"news-"+item.severity}`}>{item.severity}</span><small>{new Date(item.published_at).toLocaleString()}</small></div>
               <h3><a href={item.url} target="_blank" rel="noreferrer">{item.headline}</a></h3>
-              <div className="news-details"><div><label>WHAT HAPPENED</label><p>{item.summary}</p></div><div><label>IMPACT</label><p>{item.impact}</p></div></div>
-              <div className="news-source"><span>SOURCE</span><a href={item.url} target="_blank" rel="noreferrer">{item.source} ↗</a></div>
+              <div className="news-details"><div><label>WHAT HAPPENED</label><p>{item.summary}</p></div><div><label>WHY IT MATTERS</label><p>{item.impact}</p></div></div>
+              <div className="news-analysis">
+                <div className="news-analysis-heading"><b>Analyst breakdown</b><small>Extracted from the publisher headline and RSS description</small></div>
+                <div className="news-facts">
+                  <div><label>EVENT TYPE</label><b>{item.event_type || "Security development"}</b></div>
+                  <div><label>ATTACK VECTOR / METHOD</label><b>{item.attack_vectors?.length ? item.attack_vectors.join(" · ") : "Not clear from source snippet"}</b></div>
+                  <div><label>RELATED CVEs</label><b>{item.related_cves?.length ? item.related_cves.join(" · ") : "None identified in source snippet"}</b></div>
+                  <div><label>THREAT ACTORS</label><b>{item.mentioned_threat_actors?.length ? item.mentioned_threat_actors.join(" · ") : "Not attributed in source snippet"}</b></div>
+                  <div><label>MALWARE / TOOLING</label><b>{item.malware_or_tooling?.length ? item.malware_or_tooling.join(" · ") : "Not identified in source snippet"}</b></div>
+                </div>
+                <div className="news-actions"><label>WHAT DEFENDERS SHOULD DO</label><ul>{(item.defender_actions?.length ? item.defender_actions : ["Open the original report and assess whether your environment is affected"]).map((action,index)=><li key={index}>{action}</li>)}</ul></div>
+                <p className="news-evidence-note">{item.analysis_note || "This is a triage summary. Confirm technical details and attribution in the original publisher report. ATT&CK mappings are not inferred from headlines alone."}</p>
+              </div>
+              <div className="news-source"><span>SOURCE · {item.source}</span><a href={item.url} target="_blank" rel="noreferrer">Read original report ↗</a><small>Published {new Date(item.published_at).toLocaleString()}</small></div>
             </article>)}
             {!loadingNews&&cyberNews.length===0&&<p className="no-data">No published stories are available yet. Run the manual intelligence refresh and try again.</p>}
             {!loadingNews&&cyberNews.length>0&&cyberNews.filter(item=>{const age=Date.now()-new Date(item.published_at).getTime();const inWindow=newsWindow==="24h"?age<=86400000:newsWindow==="7d"?age<=7*86400000:true;return inWindow&&(!newsSeverity||item.severity===newsSeverity)&&(!newsSource||item.source===newsSource);}).length===0&&<p className="no-data">No stories match these filters.</p>}
