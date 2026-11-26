@@ -15,7 +15,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1] / "frontend" / "public" / "data"
 UA = "ThreatWeave-News-Snapshot/1.0 (+https://github.com/shikhasahu-23/ThreatWeave)"
 SOURCES = [
-    ("CISA Advisories", "https://www.cisa.gov/news-events/cybersecurity-advisories.xml"),
+    ("CISA Advisories", "https://www.cisa.gov/cybersecurity-advisories/all.xml"),
     ("BleepingComputer", "https://www.bleepingcomputer.com/feed/"),
     ("The Hacker News", "https://feeds.feedburner.com/TheHackersNews"),
 ]
@@ -46,17 +46,17 @@ def classify(headline: str, summary: str) -> tuple[str, str]:
     text = f"{headline} {summary}".lower()
     if any(word in text for word in ("actively exploited", "zero-day", "zero day", "ransomware", "critical vulnerability", "remote code execution")):
         severity = "critical" if any(word in text for word in ("actively exploited", "zero-day", "zero day", "ransomware")) else "high"
-    elif any(word in text for word in ("vulnerability", "breach", "data leak", "malware", "phishing", "botnet", "exploit")):
+    elif any(word in text for word in ("vulnerability", "breach", "data leak", "malware", "phishing", "botnet", "exploit", "hacked", "stolen", "unauthorized access", "compromise")):
         severity = "high"
     elif any(word in text for word in ("patch", "security update", "advisory", "cyberattack")):
         severity = "medium"
     else:
         severity = "low"
-    if any(word in text for word in ("ransomware", "data breach", "data leak")):
+    if any(word in text for word in ("ransomware", "data breach", "data leak", "hacked", "stolen", "unauthorized access")):
         impact = "Potential operational disruption, data exposure or recovery costs; validate affected organisations and scope in the source advisory."
     elif any(word in text for word in ("zero-day", "actively exploited", "remote code execution", "exploit")):
         impact = "Potential unauthorised access or code execution on affected systems; verify exposure and patch status."
-    elif any(word in text for word in ("phishing", "credential", "identity")):
+    elif any(word in text for word in ("malware", "infostealer", "spyware", "backdoor", "botnet")):\n        impact = "Potential endpoint compromise, data theft or unauthorised activity; review affected hosts, execution telemetry and network connections."\n    elif any(word in text for word in ("phishing", "credential", "identity")):
         impact = "Potential credential theft or account compromise; review identity and email telemetry."
     elif any(word in text for word in ("vulnerability", "patch", "security update")):
         impact = "Potential exposure of affected products; confirm versions and apply vendor guidance."
