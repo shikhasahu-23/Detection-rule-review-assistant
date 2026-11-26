@@ -1,74 +1,51 @@
-name: Production feature smoke tests
+name: Static portfolio smoke tests
 
 on:
   push:
-    branches: [main]
+    branches: [main, migration/github-only]
     paths:
+      - "frontend/**"
+      - "scripts/refresh_static_intelligence.py"
       - ".github/workflows/production-feature-smoke.yml"
-      - "backend/**"
-      - "frontend/src/App.tsx"
   workflow_dispatch:
 
 permissions:
   contents: read
 
 jobs:
-  production-api:
+  static-data:
     runs-on: ubuntu-latest
     steps:
-      - name: Verify production feature APIs
-        shell: bash
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate committed public datasets
         run: |
-          set -euo pipefail
-          BASE="https://detectionops-api.onrender.com"
-          check_json() {
-            local path="$1"
-            local expected="$2"
-            local name="$3"
-            local file
-            file="$(mktemp)"
-            echo "Checking ${name}: GET ${path}"
-            curl --fail --silent --show-error --retry 3 --retry-delay 5 "${BASE}${path}" -o "${file}"
-            if [[ "${expected}" == "array" ]]; then
-              jq -e 'type == "array"' "${file}" >/dev/null
-            else
-              jq -e 'type == "object"' "${file}" >/dev/null
-            fi
-            echo "PASS ${name}"
-          }
-
-          check_json "/api/v1/intelligence/summary" object "Overview summary"
-          check_json "/api/v1/intelligence/indicators?limit=5" array "Threat indicator inventory"
-          check_json "/api/v1/intelligence/feeds" array "Feed activity"
-          check_json "/api/v1/intelligence/pipeline/runs?limit=5" array "Pipeline history"
-          check_json "/api/v1/intelligence/attack-techniques?limit=5" array "MITRE ATT&CK catalog"
-          check_json "/api/v1/intelligence/detection-opportunities?limit=5" array "Intelligence correlation"
-          check_json "/api/v1/intelligence/threat-graph?limit=5" object "Threat graph"
-          check_json "/api/v1/detection-intents?limit=5" array "Detection intents"
-          check_json "/api/v1/detection-effectiveness" object "Detection effectiveness"
-
-          echo "Checking the free rule generator without an AI API key"
-          curl --fail --silent --show-error "${BASE}/api/v1/detection-intents?limit=20" -o /tmp/intents.json
-          INTENT_ID="$(jq -r '[.[] | select((.target_platforms | index("splunk")) and (.required_telemetry | any(.required_fields | length > 0)))][0].id // empty' /tmp/intents.json)"
-          if [[ -z "${INTENT_ID}" ]]; then
-            echo "::error::No existing Splunk detection intent with explicit telemetry fields is available for the generator smoke test."
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("frontend/public/data")
+          for name in ("summary.json", "indicators.json", "feeds.json", "attack-techniques.json", "detection-intents.json", "threat-graph.json", "pipeline-runs.json"):
+              path = root / name
+              assert path.is_file() and path.stat().st_size > 0, f"Missing/empty {name}"
+              json.loads(path.read_text())
+          rules = []
+          for part in range(1, 7):
+              rows = json.loads((root / f"rules-{part}.json").read_text())
+              assert isinstance(rows, list), f"rules-{part}.json is not an array"
+              rules.extend(rows)
+          assert len(rules) == 344, f"Expected 344 exported rules, got {len(rules)}"
+          print(f"PASS static datasets; {len(rules)} rule records")
+          PY
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm install
+          VITE_BASE_PATH=/ThreatWeave/ npm run build
+      - name: Verify no backend URL remains in bundle
+        run: |
+          if grep -R -q "detectionops-api.onrender.com" frontend/dist/assets; then
+            echo "::error::Frontend still references Render API"
             exit 1
           fi
-          curl --fail --silent --show-error -X POST "${BASE}/api/v1/detection-intents/${INTENT_ID}/generate" \
-            -H "Content-Type: application/json" \
-            -d '{"target_platforms":["splunk"]}' -o /tmp/free-candidates.json
-          jq -e 'type == "array" and length == 1 and .[0].generator == "free-template" and .[0].generation_metadata.provider == "free-template" and .[0].validation_report.is_deployable == false' /tmp/free-candidates.json >/dev/null
-          echo "PASS free deterministic rule generation (no API key)"
-          check_json "/api/v1/rules?limit=5" array "Rule library"
-
-          curl --fail --silent --show-error "${BASE}/openapi.json" -o /tmp/openapi.json
-          jq -e '.paths["/api/v1/detection-intents"].get and .paths["/api/v1/detection-intents"].post and .paths["/api/v1/rules"].get and .paths["/api/v1/detection-effectiveness"].get' /tmp/openapi.json >/dev/null
-          echo "PASS OpenAPI route registration"
-
-          ORIGIN="https://shikhasahu-23.github.io"
-          curl --fail --silent --show-error -D /tmp/cors.txt -o /dev/null -X OPTIONS "${BASE}/api/v1/detection-intents" \
-            -H "Origin: ${ORIGIN}" \
-            -H "Access-Control-Request-Method: POST" \
-            -H "Access-Control-Request-Headers: content-type"
-          grep -i -F "access-control-allow-origin: ${ORIGIN}" /tmp/cors.txt
-          echo "PASS browser CORS for detection-intent workflow"
