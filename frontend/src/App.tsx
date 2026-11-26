@@ -5,7 +5,42 @@ import {
   ShieldEllipsis, Sparkles, Search, Newspaper
 } from "lucide-react";
 
-const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+const DATA_ROOT = `${import.meta.env.BASE_URL}data/`;
+const readData = async (name: string) => {
+  const response = await fetch(DATA_ROOT + name);
+  if (!response.ok) throw new Error(`Unable to load ${name}`);
+  return response.json();
+};
+const localApi = async (path: string, init?: RequestInit): Promise<Response> => {
+  if (init?.method && init.method.toUpperCase() !== "GET") {
+    return new Response(JSON.stringify({ detail: "ThreatWeave Portfolio is a static, read-only deployment. Data refreshes run through GitHub Actions; browser-side writes are not enabled." }), { status: 501, headers: { "Content-Type": "application/json" } });
+  }
+  let data: any = [];
+  if (path.includes("/intelligence/summary")) data = await readData("summary.json");
+  else if (path.includes("/intelligence/indicators")) data = await readData("indicators.json");
+  else if (path.includes("/intelligence/feeds")) data = await readData("feeds.json");
+  else if (path.includes("/intelligence/attack-techniques")) data = await readData("attack-techniques.json");
+  else if (path.includes("/detection-intents")) data = await readData("detection-intents.json");
+  else if (path.includes("/intelligence/pipeline/runs")) data = await readData("pipeline-runs.json");
+  else if (path.includes("/intelligence/threat-graph")) {
+    const graph = await readData("threat-graph.json");
+    data = { nodes: graph.nodes || [], edges: (graph.edges || []).map((edge: any) => ({ ...edge, source: edge.source_entity_id, target: edge.target_entity_id })), truncated: false };
+  } else if (path.includes("/intelligence/detection-opportunities")) data = [];
+  else if (path.includes("/intelligence/cyber-news")) data = [];
+  else if (path.includes("/detection-effectiveness")) data = null;
+  else if (path.includes("/rules/") && path.includes("/test-runs")) data = [];
+  else if (path.includes("/detection-intents/") && path.includes("/candidates")) {
+    const id = path.split("/detection-intents/")[1]?.split("/")[0];
+    const batches = await Promise.all(Array.from({ length: 6 }, (_, index) => readData(`rules-${index + 1}.json`)));
+    data = batches.flat().filter((item: RuleCandidate) => item.intent_id === id);
+  } else if (path.includes("/rules")) {
+    const batches = await Promise.all(Array.from({ length: 6 }, (_, index) => readData(`rules-${index + 1}.json`)));
+    data = batches.flat();
+  }
+  return new Response(JSON.stringify(data), { status: 200, headers: { "Content-Type": "application/json" } });
+};
+
 type Summary = { indicators_total: number; active_indicators: number; sources_total: number; latest_run: { source: string; status: string; started_at: string; records_seen: number; indicators_created: number } | null };
 type Indicator = { id: string; indicator_type: string; value: string; confidence: number; severity: string; status: string; description: string | null; tags: string[]; sources: string[]; cvss_score: number | null; created_at: string };
 type Feed = { name: string; status: string; last_run: string; records_seen: number; indicators_created: number };
@@ -99,9 +134,9 @@ function App() {
     setError("");
     try {
       const [s, i, f] = await Promise.all([
-        fetch(`${API}/api/v1/intelligence/summary`),
-        fetch(`${API}/api/v1/intelligence/indicators?limit=500`),
-        fetch(`${API}/api/v1/intelligence/feeds`),
+        localApi(`/api/v1/intelligence/summary`),
+        localApi(`/api/v1/intelligence/indicators?limit=500`),
+        localApi(`/api/v1/intelligence/feeds`),
       ]);
       if (![s, i, f].every((r) => r.ok)) throw new Error("The API is unavailable. Start the backend and database, then retry.");
       setSummary(await s.json());
@@ -119,7 +154,7 @@ function App() {
   const syncCisa = async () => {
     setSyncing(true); setError(""); setNotice("");
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/feeds/cisa-kev/sync`, { method: "POST" });
+      const response = await localApi(`/api/v1/intelligence/feeds/cisa-kev/sync`, { method: "POST" });
       const body = await response.json();
       if (!response.ok) throw new Error(body.detail || "CISA feed sync failed.");
       setNotice(`CISA KEV sync complete — ${body.records_seen.toLocaleString()} records checked, ${body.indicators_created.toLocaleString()} new indicators added.`);
@@ -134,7 +169,7 @@ function App() {
   const importCsv = async (file: File) => {
     setUploadingCsv(true); setError(""); setNotice("");
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/feeds/custom/csv`, {
+      const response = await localApi(`/api/v1/intelligence/feeds/custom/csv`, {
         method: "POST", headers: { "Content-Type": "text/csv" }, body: file,
       });
       const body = await response.json();
@@ -148,7 +183,7 @@ function App() {
 
   const loadAttackCatalog = useCallback(async () => {
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/attack-techniques?limit=500`);
+      const response = await localApi(`/api/v1/intelligence/attack-techniques?limit=500`);
       if (!response.ok) throw new Error("Unable to load ATT&CK catalog.");
       setAttackTechniques(await response.json());
     } catch (e) {
@@ -163,7 +198,7 @@ function App() {
   const syncAttack = async () => {
     setSyncingAttack(true); setError(""); setNotice("");
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/feeds/mitre-attack/sync`, { method: "POST" });
+      const response = await localApi(`/api/v1/intelligence/feeds/mitre-attack/sync`, { method: "POST" });
       const body = await response.json();
       if (!response.ok) throw new Error(body.detail || "ATT&CK catalog sync failed.");
       setNotice(`ATT&CK sync complete — ${body.techniques_created} new and ${body.techniques_updated} updated techniques.`);
@@ -175,12 +210,12 @@ function App() {
 
   const loadDetectionData = useCallback(async () => {
     try {
-      const response = await fetch(`${API}/api/v1/detection-intents?limit=100`);
+      const response = await localApi(`/api/v1/detection-intents?limit=100`);
       if (!response.ok) throw new Error("Unable to load detection intents.");
       const items: DetectionIntent[] = await response.json();
       setIntents(items);
       if (page === "Rule library") {
-        const rulesResponse = await fetch(`${API}/api/v1/rules?limit=100&offset=${libraryOffset}`);
+        const rulesResponse = await localApi(`/api/v1/rules?limit=100&offset=${libraryOffset}`);
         if (!rulesResponse.ok) throw new Error("Unable to load the rule library.");
         setCandidates(await rulesResponse.json());
         return;
@@ -188,12 +223,12 @@ function App() {
       const currentId = selectedIntentId || items[0]?.id || "";
       if (!selectedIntentId && currentId) setSelectedIntentId(currentId);
       if (currentId) {
-        const rulesResponse = await fetch(`${API}/api/v1/detection-intents/${currentId}/candidates`);
+        const rulesResponse = await localApi(`/api/v1/detection-intents/${currentId}/candidates`);
         if (!rulesResponse.ok) throw new Error("Unable to load rule candidates.");
         const loadedCandidates: RuleCandidate[] = await rulesResponse.json();
         setCandidates(loadedCandidates);
         const history = await Promise.all(loadedCandidates.slice(0, 20).map(async candidate => {
-          const response = await fetch(`${API}/api/v1/rules/${candidate.id}/test-runs`);
+          const response = await localApi(`/api/v1/rules/${candidate.id}/test-runs`);
           if (!response.ok) return null;
           const runs: TestRun[] = await response.json();
           return runs.length ? [candidate.id, runs[0]] as const : null;
@@ -215,7 +250,7 @@ function App() {
   const createIntent = async () => {
     setCreatingIntent(true); setError(""); setNotice("");
     try {
-      const response = await fetch(`${API}/api/v1/detection-intents`, {
+      const response = await localApi(`/api/v1/detection-intents`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: intentTitle, description: intentDescription, behavior: intentBehavior,
@@ -240,7 +275,7 @@ function App() {
     if (!selectedIntentId) return;
     setGenerating(true); setError(""); setNotice("");
     try {
-      const response = await fetch(`${API}/api/v1/detection-intents/${selectedIntentId}/generate`, {
+      const response = await localApi(`/api/v1/detection-intents/${selectedIntentId}/generate`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ target_platforms: targetPlatforms }),
       });
@@ -259,7 +294,7 @@ function App() {
       if (libraryQuery.trim()) params.set("q", libraryQuery.trim());
       if (libraryPlatform) params.set("platform", libraryPlatform);
       if (libraryValidation) params.set("validation_status", libraryValidation);
-      const response = await fetch(`${API}/api/v1/rules?${params.toString()}`);
+      const response = await localApi(`/api/v1/rules?${params.toString()}`);
       if (!response.ok) throw new Error("Unable to load the rule library.");
       setCandidates(await response.json());
     } catch (e) {
@@ -281,7 +316,7 @@ function App() {
     setError(""); setNotice("");
     try {
       const suite = JSON.parse(testSuiteJson);
-      const response = await fetch(`${API}/api/v1/rules/${candidateId}/test-runs`, {
+      const response = await localApi(`/api/v1/rules/${candidateId}/test-runs`, {
         method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(suite),
       });
       const body = await response.json();
@@ -297,7 +332,7 @@ function App() {
   const loadOpportunities = useCallback(async () => {
     setLoadingOpportunities(true);
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/detection-opportunities?limit=100`);
+      const response = await localApi(`/api/v1/intelligence/detection-opportunities?limit=100`);
       if (!response.ok) throw new Error("Unable to load detection opportunities.");
       setOpportunities(await response.json());
     } catch (e) {
@@ -314,7 +349,7 @@ function App() {
   const loadEffectiveness = useCallback(async () => {
     setLoadingEffectiveness(true);
     try {
-      const response = await fetch(`${API}/api/v1/detection-effectiveness`);
+      const response = await localApi(`/api/v1/detection-effectiveness`);
       if (!response.ok) throw new Error("Unable to load detection effectiveness metrics.");
       setEffectiveness(await response.json());
     } catch (e) {
@@ -330,7 +365,7 @@ function App() {
 
   const loadPipelineRuns = useCallback(async () => {
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/pipeline/runs?limit=10`);
+      const response = await localApi(`/api/v1/intelligence/pipeline/runs?limit=10`);
       if (!response.ok) throw new Error("Unable to load pipeline history.");
       setPipelineRuns(await response.json());
     } catch (e) {
@@ -345,7 +380,7 @@ function App() {
   const loadCyberNews = useCallback(async () => {
     setLoadingNews(true);
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/cyber-news?limit=100`);
+      const response = await localApi(`/api/v1/intelligence/cyber-news?limit=100`);
       if (!response.ok) throw new Error("Unable to load cyber news.");
       const body = await response.json();
       setCyberNews(body.items || []);
@@ -365,7 +400,7 @@ function App() {
   const startPipeline = async () => {
     setPipelineQueued(true); setError(""); setNotice("");
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/pipeline/runs`, { method: "POST" });
+      const response = await localApi(`/api/v1/intelligence/pipeline/runs`, { method: "POST" });
       const body = await response.json();
       if (!response.ok) throw new Error(body.detail || "Unable to queue intelligence pipeline.");
        setNotice("Full intelligence pipeline started in the API background. Refresh run history to follow progress.");
@@ -380,7 +415,7 @@ function App() {
   const loadThreatGraph = useCallback(async () => {
     setLoadingThreatGraph(true);
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/threat-graph?limit=500`);
+      const response = await localApi(`/api/v1/intelligence/threat-graph?limit=500`);
       if (!response.ok) throw new Error("Unable to load threat graph.");
       setThreatGraph(await response.json());
     } catch (e) {
@@ -399,7 +434,7 @@ function App() {
     setStixImporting(true); setError(""); setNotice("");
     try {
       const bundle = JSON.parse(await file.text());
-      const response = await fetch(`${API}/api/v1/intelligence/feeds/custom/stix`, {
+      const response = await localApi(`/api/v1/intelligence/feeds/custom/stix`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source_name: file.name.slice(0, 100), bundle }),
       });
@@ -418,7 +453,7 @@ function App() {
   const syncNvd = async () => {
     setSyncingNvd(true); setError(""); setNotice("");
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/feeds/nvd/sync`, { method: "POST" });
+      const response = await localApi(`/api/v1/intelligence/feeds/nvd/sync`, { method: "POST" });
       const body = await response.json();
       if (!response.ok) throw new Error(body.detail || "NVD sync failed.");
       setNotice(`NVD sync complete — ${body.records_seen.toLocaleString()} records checked, ${body.indicators_created.toLocaleString()} new indicators added.${body.complete_window ? "" : " The result window was larger than one page; another sync is needed to complete it."}`);
