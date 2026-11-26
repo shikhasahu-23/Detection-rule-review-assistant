@@ -9,7 +9,7 @@ from sqlalchemy import desc, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.models.detection import DetectionIntent
-from app.models.intelligence import Indicator
+from app.models.intelligence import Indicator, SourceEvidence
 from app.models.rule import RuleCandidate
 from app.schemas.detection import TargetPlatform
 from app.services.generation import GenerationUnavailable, get_generation_provider
@@ -181,6 +181,28 @@ def sync_ioc_rules(db: Session, *, provider=None, indicator_limit: int = 50000) 
         .order_by(desc(Indicator.last_seen), desc(Indicator.created_at))
         .limit(indicator_limit)
     ).all()
+
+    # Backfill CWE tags from already-stored NVD evidence as well as newly synced indicators.
+    cve_ids = [row.id for row in indicators if row.indicator_type.lower() == "cve"]
+    if cve_ids:
+        nvd_evidence = db.scalars(select(SourceEvidence).where(
+            SourceEvidence.indicator_id.in_(cve_ids),
+            SourceEvidence.source_name == "NVD CVE",
+        )).all()
+        for evidence in nvd_evidence:
+            raw = evidence.raw_data if isinstance(evidence.raw_data, dict) else {}
+            extracted = set()
+            for weakness in raw.get("weaknesses", []):
+                if not isinstance(weakness, dict):
+                    continue
+                for detail in weakness.get("description", []):
+                    value = detail.get("value") if isinstance(detail, dict) else None
+                    if isinstance(value, str) and value.upper().startswith("CWE-") and value[4:].isdigit():
+                        extracted.add(f"cwe:{value.upper()}")
+            if extracted:
+                indicator = next((row for row in indicators if row.id == evidence.indicator_id), None)
+                if indicator is not None:
+                    indicator.tags = sorted(set(indicator.tags or []) | extracted)
 
     groups: dict[str, list[Indicator]] = {}
     group_types: dict[str, str] = {}
