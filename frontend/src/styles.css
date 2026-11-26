@@ -137,3 +137,40 @@
 .graph-risk-grid>div>span{display:block;margin-bottom:6px;font-size:7px;font-weight:800;letter-spacing:.7px;color:#849bb5}
 .graph-risk-grid p{margin:0;font-size:9px;line-height:1.5;color:#c4d2e2;overflow-wrap:anywhere}
 .graph-entity-bottom{flex-wrap:wrap}
+
+
+/* ATT&CK catalogue and versioned rule-library presentation */
+.catalog-filters{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin:13px 0 17px}
+.catalog-filters select,.catalog-filters button{background:#0b1524;border:1px solid #2a3b53;border-radius:6px;padding:9px 11px;color:#e8edf6;font:inherit;font-size:10px}
+.catalog-filters button{background:#172e49;border-color:#31547a;color:#c6e0ff;cursor:pointer}
+.catalog-filters .searchbar{flex:1;min-width:190px;margin:0}
+.catalog-banner{background:linear-gradient(110deg,#172c4b,#17233a);border-color:#31517a}
+.technique-summary{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;min-height:44px}
+.technique-platforms{display:flex;flex-wrap:wrap;gap:5px}
+.technique-platforms span{font-size:8px;color:#aebfd2;background:#18283c;border:1px solid #2b4058;border-radius:4px;padding:4px 6px}
+.technique-footer{display:flex;justify-content:space-between;align-items:center;border-top:1px solid #24364d;padding-top:9px;margin-top:auto}
+.tech-status{font-size:8px;text-transform:uppercase;letter-spacing:.7px}.tech-status.active{color:#67d8a7}.tech-status.deprecated{color:#e6bd66}.tech-status.revoked{color:#f18b91}
+.technique-footer a{font-size:9px;color:#8fc6ff;text-decoration:none}
+.platform-choice{transition:transform .15s ease,border-color .15s ease;cursor:pointer}.platform-choice:hover{transform:translateY(-1px)}
+.platform-choice.platform-splunk{border-color:#d49a42;background:#382b1c;color:#f5c77b}
+.platform-choice.platform-sentinel{border-color:#4e8bd2;background:#172e4d;color:#9bc7ff}
+.platform-choice.platform-chronicle{border-color:#45b7a3;background:#153a39;color:#8de4d2}
+.platform-choice.platform-sigma{border-color:#a58adf;background:#2a2144;color:#c9b7ff}
+.candidate-card.language-splunk,.library-platform.language-splunk{border-left:3px solid #d49a42}
+.candidate-card.language-sentinel,.library-platform.language-sentinel{border-left:3px solid #4e8bd2}
+.candidate-card.language-chronicle,.library-platform.language-chronicle{border-left:3px solid #45b7a3}
+.candidate-card.language-sigma,.library-platform.language-sigma{border-left:3px solid #a58adf}
+.candidate-card.language-crowdstrike,.library-platform.language-crowdstrike{border-left:3px solid #df6868}
+.library-usecase{margin-top:14px;padding:15px;border:1px solid #2b405a;border-radius:9px;background:#0d1929}
+.library-usecase-head{display:flex;justify-content:space-between;gap:12px;align-items:center;margin-bottom:12px}
+.library-usecase-head b{font:700 12px Manrope}.library-usecase-head small{display:block;color:#8fa3bd;font-size:9px;margin-top:4px}
+.library-usecase-head>span{font-size:8px;letter-spacing:1px;color:#8fbfff;background:#172e49;padding:5px 7px;border-radius:4px}
+.library-platform-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(270px,1fr));gap:10px}
+.library-platform{min-width:0;padding:12px;background:#0a1422;border:1px solid #263950;border-radius:7px}
+.library-platform-head{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.library-platform-head>b{font-size:10px}.library-platform-head label{font-size:8px;color:#8298b4}
+.library-platform-head select{margin-left:5px;background:#14243a;border:1px solid #344a65;border-radius:5px;padding:5px;color:#e8edf6;font-size:9px}
+.library-platform-meta{display:flex;gap:7px;flex-wrap:wrap;margin-top:8px}
+.library-platform-meta span{font-size:8px;color:#9eb3ca;background:#15263a;padding:4px 6px;border-radius:4px}
+.library-platform pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#07101c;border:1px solid #1e2c40;border-radius:6px;padding:10px;color:#c4d8f0;font:9px/1.6 ui-monospace,monospace;max-height:260px;overflow:auto;margin:10px 0}
+@media(max-width:760px){.catalog-filters{align-items:stretch;flex-direction:column}.catalog-filters select,.catalog-filters .searchbar{width:100%;max-width:none}.library-platform-grid{grid-template-columns:1fr}}
