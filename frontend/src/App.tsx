@@ -14,8 +14,8 @@ type TestRun = { id:string; status:string; total_cases:number; passed_cases:numb
 type RuleCandidate = { id: string; intent_id: string; name: string; platform: string; query: string; version: number; status: string; validation_status: string; validation_report: { errors: {code:string;message:string}[]; warnings: {code:string;message:string}[]; is_deployable: boolean; telemetry_coverage?: {score:number|null;status:string;matched_requirements:number;total_requirements:number} }; generation_metadata: {provider?:string;model?:string;prompt_version?:string;generated_at?:string;validation_scope?:string}; generator: string };
 type AttackTechnique = { id: string; external_id: string; name: string; description: string; platforms: string[]; tactics: string[]; is_subtechnique: boolean; revoked: boolean; deprecated: boolean; source_url: string };
 type PipelineRun = { run_id: string; status: string; trigger: string; indicators_enriched: number; opportunities_found: number; candidates_created: number; candidates_skipped: number; started_at: string; completed_at: string | null; error_message: string | null; stage_results: Record<string, {status: string; reason?: string; error?: string}> };
-type ThreatNode = { id: string; entity_type: string; external_id: string; name: string; description?: string; confidence: number | null; severity: string | null; impact: string | null; source_name: string; source_reference: string; source_url: string | null; revoked: boolean; deprecated: boolean };
-type ThreatEdge = { id: string; source: string; target: string; relationship_type: string; confidence: number | null; assertion_status: string; source_name: string; source_reference: string; source_url: string | null };
+type ThreatNode = { id: string; entity_type: string; external_id: string; name: string; description?: string; impact: string | null; source_name: string; source_reference: string; source_url: string | null; revoked: boolean; deprecated: boolean };
+type ThreatEdge = { id: string; source: string; target: string; relationship_type: string; assertion_status: string; source_name: string; source_reference: string; source_url: string | null };
 type ThreatGraph = { nodes: ThreatNode[]; edges: ThreatEdge[]; truncated: boolean };
 type CyberNews = { id:string; headline:string; summary:string; impact:string; severity:string; source:string; url:string; published_at:string };
 type Opportunity = { intent_id: string; title: string; severity: string; status: string; target_platforms: string[]; association_type: string; indicators: { indicator_id: string; indicator_type: string; value: string; confidence: number; severity: string; freshness: string; evidence_count: number }[]; matched_techniques: string[]; matched_cves: string[]; indicator_count: number; evidence_count: number; rationale: string };
@@ -84,8 +84,6 @@ function App() {
   const [stixImporting, setStixImporting] = useState(false);
   const [entityTypeFilter, setEntityTypeFilter] = useState("");
   const [entitySearch, setEntitySearch] = useState("");
-  const [graphConfidenceFilter, setGraphConfidenceFilter] = useState("all");
-  const [graphSeverityFilter, setGraphSeverityFilter] = useState("all");
   const [graphStatusFilter, setGraphStatusFilter] = useState("all");
   const [selectedGraphNodeId, setSelectedGraphNodeId] = useState("");
   const [pipelineRuns, setPipelineRuns] = useState<PipelineRun[]>([]);
@@ -439,11 +437,8 @@ function App() {
       (item.value.toLowerCase().includes(query.toLowerCase()) || (item.description || "").toLowerCase().includes(query.toLowerCase()));
   });
   const graphVisibleNodes = threatGraph.nodes.filter(node => {
-    const confidenceBand = node.confidence === null ? "unknown" : node.confidence >= 80 ? "high" : node.confidence >= 50 ? "medium" : "low";
     const status = node.revoked ? "revoked" : node.deprecated ? "deprecated" : "current";
     return (!entityTypeFilter || node.entity_type === entityTypeFilter) &&
-      (!graphConfidenceFilter || graphConfidenceFilter === "all" || confidenceBand === graphConfidenceFilter) &&
-      (graphSeverityFilter === "all" || (node.severity || "unknown") === graphSeverityFilter) &&
       (!graphStatusFilter || graphStatusFilter === "all" || status === graphStatusFilter) &&
       (`${node.name} ${node.external_id} ${node.source_name}`.toLowerCase().includes(entitySearch.toLowerCase()));
   });
@@ -459,9 +454,6 @@ function App() {
   })).sort((a, b) => b.connections - a.connections).slice(0, 5);
   const selectedGraphNode = graphVisibleNodes.find(node => node.id === selectedGraphNodeId) || null;
   const selectedGraphEdges = selectedGraphNode ? graphVisibleEdges.filter(edge => edge.source === selectedGraphNode.id || edge.target === selectedGraphNode.id) : [];
-  const graphHighConfidence = graphVisibleNodes.filter(node => node.confidence !== null && node.confidence >= 80).length;
-  const graphUnknownConfidence = graphVisibleNodes.filter(node => node.confidence === null).length;
-  const graphCriticalSeverity = graphVisibleNodes.filter(node => node.severity === "critical").length;
 
   const stats = [
     { label: "Active intelligence", value: summary?.active_indicators ?? "—", note: "Active indicators stored", icon: Radar },
@@ -548,14 +540,12 @@ function App() {
           </tbody></table></div>
         </section>
       </> : page === "Threat graph" ? <>
-        <section className="banner graph-banner"><Network/><div><b>Threat landscape at a glance</b><p>Explore source-backed entities and reported relationships. Confidence reflects the source's assessment — it is not independent confirmation of malicious activity.</p></div><span>STIX 2.1</span></section>
+        <section className="banner graph-banner"><Network/><div><b>Threat landscape at a glance</b><p>Explore source-backed entities and reported relationships. Explore source-backed entities, adversary behaviour and reported relationships with traceable evidence.</p></div><span>STIX 2.1</span></section>
         <section className="graph-overview">
           <div className="graph-overview-head"><div><label>INTELLIGENCE SNAPSHOT</label><b>What is connected right now</b></div><button onClick={()=>void loadThreatGraph()} disabled={loadingThreatGraph}><RefreshCw size={14} className={loadingThreatGraph?"spin":""}/>{loadingThreatGraph?"Refreshing…":"Refresh graph"}</button></div>
           <div className="graph-kpis">
             <article className="graph-kpi graph-kpi-blue"><span>ENTITIES</span><strong>{graphVisibleNodes.length}</strong><small>{graphTypeCounts.length} entity categories</small></article>
             <article className="graph-kpi graph-kpi-violet"><span>RELATIONSHIPS</span><strong>{graphVisibleEdges.length}</strong><small>Links between visible entities</small></article>
-            <article className="graph-kpi graph-kpi-green"><span>HIGH CONFIDENCE</span><strong>{graphHighConfidence}</strong><small>80%+ · {graphUnknownConfidence} unknown</small></article>
-            <article className="graph-kpi graph-kpi-amber"><span>CRITICAL SEVERITY</span><strong>{graphCriticalSeverity}</strong><small>Explicit source / CVSS classification</small></article>
           </div>
           <div className="graph-overview-grid">
             <article className="graph-visual-panel">
@@ -564,7 +554,7 @@ function App() {
             </article>
             <article className="graph-visual-panel">
               <div className="graph-section-title"><div><b>Most connected entities</b><small>Ranked by visible relationship count</small></div><span>TOP 5</span></div>
-              {graphConnectedCounts.length ? <div className="graph-leader-list">{graphConnectedCounts.map((node,index)=><button className={selectedGraphNodeId===node.id?"graph-leader active":"graph-leader"} key={node.id} onClick={()=>setSelectedGraphNodeId(node.id)}><span className={`graph-rank rank-${index+1}`}>{index+1}</span><span className="graph-leader-copy"><b>{node.name}</b><small>{node.entity_type.replaceAll("_"," ")} · {node.confidence === null ? "confidence unknown" : `${node.confidence}% confidence`}</small></span><strong>{node.connections}<small>links</small></strong></button>)}</div> : <p className="no-data">Relationship data will appear here when linked entities are available.</p>}
+              {graphConnectedCounts.length ? <div className="graph-leader-list">{graphConnectedCounts.map((node,index)=><button className={selectedGraphNodeId===node.id?"graph-leader active":"graph-leader"} key={node.id} onClick={()=>setSelectedGraphNodeId(node.id)}><span className={`graph-rank rank-${index+1}`}>{index+1}</span><span className="graph-leader-copy"><b>{node.name}</b><small>{node.entity_type.replaceAll("_"," ")}</small></span><strong>{node.connections}<small>links</small></strong></button>)}</div> : <p className="no-data">Relationship data will appear here when linked entities are available.</p>}
             </article>
           </div>
         </section>
@@ -573,8 +563,6 @@ function App() {
           <div className="searchbar"><Search size={16}/><input value={entitySearch} onChange={e=>setEntitySearch(e.target.value)} placeholder="Search entity, STIX ID or source…"/></div>
           <div className="graph-filterbar">
             <select value={entityTypeFilter} onChange={e=>setEntityTypeFilter(e.target.value)}><option value="">All entity types</option>{[...new Set(threatGraph.nodes.map(n=>n.entity_type))].sort().map(type=><option key={type} value={type}>{type.replaceAll("_"," ")}</option>)}</select>
-            <select value={graphConfidenceFilter} onChange={e=>setGraphConfidenceFilter(e.target.value)}><option value="all">All confidence levels</option><option value="high">High · 80%+</option><option value="medium">Medium · 50–79%</option><option value="low">Low · below 50%</option><option value="unknown">Unknown</option></select>
-            <select value={graphSeverityFilter} onChange={e=>setGraphSeverityFilter(e.target.value)}><option value="all">All severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option><option value="unknown">Unknown</option></select>
             <select value={graphStatusFilter} onChange={e=>setGraphStatusFilter(e.target.value)}><option value="all">All statuses</option><option value="current">Current</option><option value="deprecated">Deprecated</option><option value="revoked">Revoked</option></select>
             <span className="graph-result-count">Showing {graphVisibleNodes.length} of {threatGraph.nodes.length}</span>
           </div>
@@ -584,7 +572,7 @@ function App() {
               {graphVisibleNodes.map(node=><article className={selectedGraphNodeId===node.id?"graph-entity-card selected":"graph-entity-card"} key={node.id}>
                 <div className="graph-entity-top"><span className={`graph-entity-type type-${node.entity_type}`}>{node.entity_type.replaceAll("_"," ")}</span><span className={`graph-status status-${node.revoked?"revoked":node.deprecated?"deprecated":"current"}`}>{node.revoked?"Revoked":node.deprecated?"Deprecated":"Current"}</span></div>
                 <b>{node.name}</b><small className="graph-entity-id">{node.external_id}</small>
-                <div className="graph-entity-bottom"><span className={`confidence-label ${node.confidence===null?"confidence-unknown":node.confidence>=80?"confidence-high":node.confidence>=50?"confidence-medium":"confidence-low"}`}>{node.confidence===null?"Unknown confidence":`${node.confidence}% confidence`}</span><span className={`severity-chip severity-${node.severity||"unknown"}`}>{node.severity||"severity unknown"}</span><button onClick={()=>setSelectedGraphNodeId(node.id)}>{selectedGraphNodeId===node.id?"Selected":"View links"} <ChevronRight size={13}/></button></div>
+                <div className="graph-entity-bottom"><button onClick={()=>setSelectedGraphNodeId(node.id)}>{selectedGraphNodeId===node.id?"Selected":"View links"} <ChevronRight size={13}/></button></div>
               </article>)}
               {!loadingThreatGraph&&graphVisibleNodes.length===0&&<p className="no-data">{threatGraph.nodes.length?"No entities match the selected filters.":"No threat entities yet. Import a STIX 2.1 bundle to build your graph."}</p>}
             </div>
@@ -592,14 +580,14 @@ function App() {
               {selectedGraphNode ? <>
                 <div className="graph-detail-head"><span className={`graph-entity-type type-${selectedGraphNode.entity_type}`}>{selectedGraphNode.entity_type.replaceAll("_"," ")}</span><span className={`graph-status status-${selectedGraphNode.revoked?"revoked":selectedGraphNode.deprecated?"deprecated":"current"}`}>{selectedGraphNode.revoked?"Revoked":selectedGraphNode.deprecated?"Deprecated":"Current"}</span></div>
                 <h3>{selectedGraphNode.name}</h3><p className="graph-detail-id">{selectedGraphNode.external_id}</p>
-                <div className="graph-detail-confidence"><strong>{selectedGraphNode.confidence===null?"Unknown":`${selectedGraphNode.confidence}%`}</strong><span>source confidence</span>{selectedGraphNode.confidence!==null&&<div><i style={{width:`${selectedGraphNode.confidence}%`}}/></div>}</div>
-                <div className="graph-risk-grid"><div><span>SEVERITY</span><b className={`severity-chip severity-${selectedGraphNode.severity||"unknown"}`}>{selectedGraphNode.severity||"Unknown"}</b></div><div><span>IMPACT</span><p>{selectedGraphNode.impact||"Not provided by source"}</p></div></div>
+                {selectedGraphNode.impact&&<div className="graph-impact-detail"><span>IMPACT / CONTEXT</span><p>{selectedGraphNode.impact}</p></div>}
+
                 <p className="graph-detail-description">{selectedGraphNode.description||"No description was provided by the source."}</p>
                 <div className="graph-detail-meta"><span>Source</span><b>{selectedGraphNode.source_name}</b><span>Reference</span><b>{selectedGraphNode.source_reference}</b></div>
                 {selectedGraphNode.source_url&&<a className="graph-source-link" href={selectedGraphNode.source_url} target="_blank" rel="noreferrer">Open source reference ↗</a>}
                 <div className="graph-connected-heading"><b>Connected relationships</b><span>{selectedGraphEdges.length}</span></div>
-                {selectedGraphEdges.length?selectedGraphEdges.map(edge=><div className="graph-connection" key={edge.id}><div><b>{edge.source===selectedGraphNode.id?threatGraph.nodes.find(n=>n.id===edge.target)?.name||edge.target:threatGraph.nodes.find(n=>n.id===edge.source)?.name||edge.source}</b><span className="connection-direction">{edge.source===selectedGraphNode.id?"OUTGOING":"INCOMING"} · {edge.relationship_type.replaceAll("_"," ")}</span></div><span className={`graph-status status-${edge.assertion_status.includes("refuted")?"revoked":edge.assertion_status.includes("inferred")?"deprecated":"current"}`}>{edge.assertion_status.replaceAll("_"," ")}</span><small>{edge.confidence===null?"Confidence unknown":`${edge.confidence}% confidence`} · {edge.source_name}</small>{edge.source_url&&<a href={edge.source_url} target="_blank" rel="noreferrer">Evidence source ↗</a>}</div>):<p className="no-data">No linked relationships for this entity in the current result set.</p>}
-              </> : <div className="graph-detail-empty"><Network size={28}/><b>Select an entity to explore its connections</b><p>Choose an entity card or a top connected entity to see its relationships, direction, confidence and source evidence.</p></div>}
+                {selectedGraphEdges.length?selectedGraphEdges.map(edge=><div className="graph-connection" key={edge.id}><div><b>{edge.source===selectedGraphNode.id?threatGraph.nodes.find(n=>n.id===edge.target)?.name||edge.target:threatGraph.nodes.find(n=>n.id===edge.source)?.name||edge.source}</b><span className="connection-direction">{edge.source===selectedGraphNode.id?"OUTGOING":"INCOMING"} · {edge.relationship_type.replaceAll("_"," ")}</span></div><span className={`graph-status status-${edge.assertion_status.includes("refuted")?"revoked":edge.assertion_status.includes("inferred")?"deprecated":"current"}`}>{edge.assertion_status.replaceAll("_"," ")}</span><small>{edge.source_name}</small>{edge.source_url&&<a href={edge.source_url} target="_blank" rel="noreferrer">Evidence source ↗</a>}</div>):<p className="no-data">No linked relationships for this entity in the current result set.</p>}
+              </> : <div className="graph-detail-empty"><Network size={28}/><b>Select an entity to explore its connections</b><p>Choose an entity card or a top connected entity to see its relationships, direction and source evidence.</p></div>}
             </aside>
           </div>
           <div className="graph-legend"><span><i className="legend-dot legend-blue"/> Actor / campaign</span><span><i className="legend-dot legend-red"/> Malware / tool</span><span><i className="legend-dot legend-violet"/> Infrastructure / vulnerability</span><span><i className="legend-dot legend-green"/> Current / source-observed</span><span><i className="legend-dot legend-amber"/> Deprecated / inferred</span></div>
