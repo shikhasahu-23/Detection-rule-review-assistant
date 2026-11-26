@@ -1,3 +1,5 @@
+> **Current public deployment:** the GitHub Pages portfolio does not run Celery, Redis or the API. Its active scheduled refresh is GitHub Actions at 02:30 UTC (08:00 IST), refreshing CISA KEV and MITRE ATT&CK static JSON only. The Celery schedule below applies only to the optional local backend stack and is not active on the public site. See [GitHub Pages portfolio operations](GITHUB_PAGES_PORTFOLIO.md).
+
 # Daily intelligence ingestion
 
 Celery Beat schedules two independent jobs in UTC:
