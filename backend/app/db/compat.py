@@ -15,7 +15,9 @@ def ensure_threat_graph_schema(engine: Engine) -> None:
 
     column_definitions = {
         "external_id": "VARCHAR(255) NOT NULL DEFAULT ''",
-        "confidence": "INTEGER NOT NULL DEFAULT 50",
+        "confidence": "INTEGER",
+        "severity": "VARCHAR(16)",
+        "impact": "TEXT",
         "source_name": "VARCHAR(100) NOT NULL DEFAULT 'legacy'",
         "source_reference": "VARCHAR(512) NOT NULL DEFAULT 'legacy'",
         "source_url": "VARCHAR(2048)",
@@ -40,6 +42,28 @@ def ensure_threat_graph_schema(engine: Engine) -> None:
                 connection.exec_driver_sql(
                     f"ALTER TABLE threat_entities ADD COLUMN {name} {definition}"
                 )
+
+
+        # Confidence is source evidence, not a fallback score. Existing legacy
+        # values are retained because their origin cannot be reconstructed.
+        for table_name in ("threat_entities", "threat_relationships", "threat_entity_evidence"):
+            if inspector.has_table(table_name):
+                columns = {column["name"] for column in inspect(connection).get_columns(table_name)}
+                if "confidence" in columns:
+                    connection.exec_driver_sql(
+                        f"ALTER TABLE {table_name} ALTER COLUMN confidence DROP NOT NULL"
+                    )
+                    connection.exec_driver_sql(
+                        f"ALTER TABLE {table_name} ALTER COLUMN confidence DROP DEFAULT"
+                    )
+
+        # New entity attributes are additive and nullable: feeds that do not
+        # publish severity or impact remain explicitly unknown.
+        entity_columns = {column["name"] for column in inspect(connection).get_columns("threat_entities")}
+        if "severity" not in entity_columns:
+            connection.exec_driver_sql("ALTER TABLE threat_entities ADD COLUMN severity VARCHAR(16)")
+        if "impact" not in entity_columns:
+            connection.exec_driver_sql("ALTER TABLE threat_entities ADD COLUMN impact TEXT")
 
         # These columns belonged to the previous multi-tenant entity schema.
         # Keep them and their data, but make them optional because the current
