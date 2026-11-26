@@ -69,6 +69,9 @@ function App() {
   const [generating, setGenerating] = useState(false);
   const [attackTechniques, setAttackTechniques] = useState<AttackTechnique[]>([]);
   const [attackSearch, setAttackSearch] = useState("");
+  const [attackTacticFilter, setAttackTacticFilter] = useState("");
+  const [attackTechniqueFilter, setAttackTechniqueFilter] = useState("");
+  const [libraryVersionSelection, setLibraryVersionSelection] = useState<Record<string, number>>({});
   const [syncingAttack, setSyncingAttack] = useState(false);
   const [uploadingCsv, setUploadingCsv] = useState(false);
   const [libraryQuery, setLibraryQuery] = useState("");
@@ -454,6 +457,31 @@ function App() {
   })).sort((a, b) => b.connections - a.connections).slice(0, 5);
   const selectedGraphNode = graphVisibleNodes.find(node => node.id === selectedGraphNodeId) || null;
   const selectedGraphEdges = selectedGraphNode ? graphVisibleEdges.filter(edge => edge.source === selectedGraphNode.id || edge.target === selectedGraphNode.id) : [];
+  const visibleAttackTechniques = attackTechniques.filter(item =>
+    (!attackTacticFilter || item.tactics.includes(attackTacticFilter)) &&
+    (!attackTechniqueFilter || item.external_id === attackTechniqueFilter) &&
+    [item.external_id, item.name, item.description, ...item.tactics, ...item.platforms].join(" ").toLowerCase().includes(attackSearch.toLowerCase())
+  );
+  const filteredLibraryCandidates = candidates.filter(candidate => {
+    const intent = intents.find(x => x.id === candidate.intent_id);
+    const techniques = intent?.attack_techniques || [];
+    const tacticMatch = !libraryTactic || techniques.some(id => attackTechniques.some(t => t.external_id === id && t.tactics.includes(libraryTactic)));
+    const techniqueMatch = !libraryTechnique || techniques.includes(libraryTechnique);
+    const queryMatch = !libraryQuery || candidate.name.toLowerCase().includes(libraryQuery.toLowerCase()) || candidate.query.toLowerCase().includes(libraryQuery.toLowerCase());
+    const platformMatch = !libraryPlatform || candidate.platform === libraryPlatform;
+    return tacticMatch && techniqueMatch && queryMatch && platformMatch;
+  });
+  const libraryGroups = Object.values(filteredLibraryCandidates.reduce<Record<string, { key: string; title: string; candidates: RuleCandidate[] }>>((groups, candidate) => {
+    const key = candidate.intent_id + "::" + candidate.name;
+    if (!groups[key]) groups[key] = { key, title: intents.find(x => x.id === candidate.intent_id)?.title || candidate.name, candidates: [] };
+    groups[key].candidates.push(candidate);
+    return groups;
+  }, {}));
+  const latestGeneratedCandidates = Object.values(candidates.reduce<Record<string, RuleCandidate>>((latest, candidate) => {
+    if (!latest[candidate.platform] || candidate.version > latest[candidate.platform].version) latest[candidate.platform] = candidate;
+    return latest;
+  }, {}));
+
 
   const stats = [
     { label: "Active intelligence", value: summary?.active_indicators ?? "—", note: "Active indicators stored", icon: Radar },
