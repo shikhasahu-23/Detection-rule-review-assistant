@@ -1,3 +1,5 @@
+> **Current public deployment:** ThreatWeave is currently published as a read-only React/Vite static portfolio on GitHub Pages. The FastAPI, PostgreSQL, Redis/Celery components below describe the retained backend source architecture and local development stack; they are not running as part of the public Pages deployment. See [GitHub Pages portfolio operations](GITHUB_PAGES_PORTFOLIO.md) for the deployed architecture and limitations.
+
 # System Architecture
 
 ## Product goals
