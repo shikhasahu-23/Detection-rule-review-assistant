@@ -90,8 +90,8 @@ const writeBrowserDrafts = <T,>(key: string, value: T[]) => {
   window.localStorage.setItem(key, JSON.stringify(value));
 };
 const buildLocalQueries = (intent: DetectionIntent, platform: string, version: number): RuleCandidate => {
-  const terms = [...new Set((intent.title + " " + intent.description + " " + intent.behavior).toLowerCase().match(/[a-z0-9]{3,}/g) || [])
-    .filter(word => !["the","and","for","with","that","this","from","when","into","should","detect","detection","activity","system","using"].includes(word))].slice(0, 8);
+  const terms = [...new Set(((intent.title + " " + intent.description + " " + intent.behavior).toLowerCase().match(/[a-z0-9]{3,}/g) || [])
+    .filter((word: string) => !["the","and","for","with","that","this","from","when","into","should","detect","detection","activity","system","using"].includes(word)))].slice(0, 8);
   const safe = (value: string) => value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
   const quoted = terms.map(safe);
   let query = "";
