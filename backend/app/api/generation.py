@@ -21,7 +21,7 @@ from app.services.platforms import get_platform_contract
 from app.services.validation import validate_candidate
 
 router = APIRouter(prefix="/api/v1/detection-intents", tags=["detection generation"])
-DbSession = Annotated[Session, Depends(get_db)]
+DbSession = Annotated[Session, Depends(get_db, scope="function")]
 Provider = Annotated[GenerationProvider, Depends(get_generation_provider)]
 
 
