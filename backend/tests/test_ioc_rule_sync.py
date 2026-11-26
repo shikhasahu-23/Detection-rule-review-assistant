@@ -77,3 +77,29 @@ def test_sigma_yaml_and_cve_rules_are_generated_for_supported_formats():
     assert "CVE-2025-12345" in splunk.query
     assert "DeviceTvmSoftwareVulnerabilities" in sentinel.query
     assert "$e.vulnerability.cve_id" in chronicle.query
+
+
+
+def test_cve_ioc_rules_are_grouped_by_cwe_weakness_category():
+    db = make_session()
+    db.add_all([
+        Indicator(indicator_type="cve", value="CVE-2025-0001", confidence=90, severity="high", status="active", tags=["nvd", "vulnerability", "cwe:CWE-79"]),
+        Indicator(indicator_type="cve", value="CVE-2025-0002", confidence=90, severity="high", status="active", tags=["nvd", "vulnerability", "cwe:CWE-79"]),
+        Indicator(indicator_type="cve", value="CVE-2025-0003", confidence=90, severity="high", status="active", tags=["nvd", "vulnerability", "cwe:CWE-89"]),
+        Indicator(indicator_type="cve", value="CVE-2025-0004", confidence=90, severity="high", status="active", tags=["nvd", "vulnerability"]),
+    ])
+    db.commit()
+
+    result = sync_ioc_rules(db)
+    intents = db.scalars(select(__import__("app.models.detection", fromlist=["DetectionIntent"]).DetectionIntent)).all()
+    titles = {item.title for item in intents}
+    assert result["rule_versions_created"] == 16
+    assert "ThreatWeave Active IOC Coverage: cve-cwe-79:0001" in titles
+    assert "ThreatWeave Active IOC Coverage: cve-cwe-89:0001" in titles
+    assert "ThreatWeave Active IOC Coverage: cve-unclassified:0001" in titles
+    cwe79_rules = db.scalars(select(RuleCandidate).where(RuleCandidate.intent_id == next(
+        item.id for item in intents if item.title.endswith("cve-cwe-79:0001")
+    ))).all()
+    assert len(cwe79_rules) == 4
+    assert all("CVE-2025-0001" in item.query and "CVE-2025-0002" in item.query for item in cwe79_rules)
+    assert all("CVE-2025-0003" not in item.query for item in cwe79_rules)
