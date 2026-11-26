@@ -714,27 +714,36 @@ function App() {
             <button onClick={()=>void loadRuleLibrary()}><RefreshCw size={15}/> Refresh</button>
           </div>
           {libraryGroups.map(group=><article className="library-usecase" key={group.key}>
-            <div className="library-usecase-head"><div><b>{group.title}</b><small>{group.subtitle} · {group.candidates.length} language/version records</small></div><span>{group.subtitle.startsWith("Batch ")?"IOC BATCH":"USE CASE"}</span></div>
-            <div className="library-platform-grid">{Object.entries(group.candidates.reduce<Record<string, RuleCandidate[]>>((byPlatform, candidate) => { (byPlatform[candidate.platform] ||= []).push(candidate); return byPlatform; }, {})).map(([platform, versions])=>{
-              const ordered=[...versions].sort((a,b)=>b.version-a.version);
-              const selectionKey=group.key+"::"+platform;
-              const selected=ordered.find(item=>item.version===libraryVersionSelection[selectionKey])||ordered[0];
-              const selectedIntent=intents.find(x=>x.id===selected.intent_id);
-              const mappedTechniques=(selectedIntent?.attack_techniques||[]).map(id=>({id,detail:attackTechniques.find(t=>t.external_id===id)}));
-              const mappedTactics=[...new Set(mappedTechniques.flatMap(item=>item.detail?.tactics||[]))];
-              const platformName=platform==="sentinel"?"Microsoft Sentinel KQL":platform==="chronicle"?"Google SecOps YARA-L 2.0":platform==="sigma"?"Sigma YAML":platform==="crowdstrike"?"CrowdStrike":"Splunk SPL";
-              return <section className={"library-platform language-"+platform} key={platform}>
-                <div className="library-platform-head"><b>{platformName}</b><label>VERSION <select value={selected.version} onChange={e=>setLibraryVersionSelection(old=>({...old,[selectionKey]:Number(e.target.value)}))}>{ordered.map(version=><option key={version.id} value={version.version}>v{version.version}{version===ordered[0]?" · Latest":""}</option>)}</select></label></div>
-                <div className="library-platform-meta"><span>{selected.generator==="ioc-intel"?"Threat-intel maintained":selected.generator}</span><span>{selected.validation_status}</span></div>
-                <pre>{selected.query}</pre>
-                <button className="copy-query" onClick={()=>navigator.clipboard?.writeText(selected.query).then(()=>setNotice("Query copied to clipboard."))}>Copy {platformName} query</button>
-                <div className="rule-attack-context">
-                  <div><b>MITRE tactics</b><p>{mappedTactics.length?mappedTactics.map(t=>t.replaceAll("_"," ")).join(" · "):"Not mapped"}</p></div>
-                  <div><b>MITRE techniques</b><p>{mappedTechniques.length?mappedTechniques.map(item=>`${item.id}${item.detail? ` · ${item.detail.name}`:""}`).join(" · "):"Not mapped — this IOC coverage rule matches indicator values rather than a specific attacker behaviour."}</p></div>
-                </div>
+            <div className="library-usecase-head"><div><b>{group.title}</b><small>{group.subtitle} · {group.candidates.length} language/version records</small></div><span>{group.key.startsWith("ioc::")?"IOC USE CASE":"USE CASE"}</span></div>
+            {Object.values(group.candidates.reduce<Record<string, RuleCandidate[]>>((batches, candidate) => { (batches[candidate.intent_id] ||= []).push(candidate); return batches; }, {})).map(batchCandidates=>{
+              const batchIntent=intents.find(x=>x.id===batchCandidates[0]?.intent_id);
+              const batchTitle=batchIntent?.title||"Detection use case";
+              const batchMatch=batchTitle.match(/^ThreatWeave Active IOC Coverage:\\s*([a-z0-9_-]+):(\\d+)$/i);
+              const batchKey=batchCandidates[0]?.intent_id||group.key;
+              return <section className="library-batch" key={batchKey}>
+                {batchMatch&&<div className="library-batch-head"><b>Batch {batchMatch[2]}</b><span>{batchCandidates[0]?.generation_metadata?.indicator_count??"—"} active indicators</span></div>}
+                <div className="library-platform-grid">{Object.entries(batchCandidates.reduce<Record<string, RuleCandidate[]>>((byPlatform, candidate) => { (byPlatform[candidate.platform] ||= []).push(candidate); return byPlatform; }, {})).map(([platform, versions])=>{
+                  const ordered=[...versions].sort((a,b)=>b.version-a.version);
+                  const selectionKey=group.key+"::"+batchKey+"::"+platform;
+                  const selected=ordered.find(item=>item.version===libraryVersionSelection[selectionKey])||ordered[0];
+                  const selectedIntent=intents.find(x=>x.id===selected.intent_id);
+                  const mappedTechniques=(selectedIntent?.attack_techniques||[]).map(id=>({id,detail:attackTechniques.find(t=>t.external_id===id)}));
+                  const mappedTactics=[...new Set(mappedTechniques.flatMap(item=>item.detail?.tactics||[]))];
+                  const platformName=platform==="sentinel"?"Microsoft Sentinel KQL":platform==="chronicle"?"Google SecOps YARA-L 2.0":platform==="sigma"?"Sigma YAML":platform==="crowdstrike"?"CrowdStrike":"Splunk SPL";
+                  const isIoc=selected.generator==="ioc-intel";
+                  return <section className={"library-platform language-"+platform} key={platform}>
+                    <div className="library-platform-head"><b>{platformName}</b><label>VERSION <select value={selected.version} onChange={e=>setLibraryVersionSelection(old=>({...old,[selectionKey]:Number(e.target.value)}))}>{ordered.map(version=><option key={version.id} value={version.version}>v{version.version}{version===ordered[0]?" · Latest":""}</option>)}</select></label></div>
+                    <div className="library-platform-meta"><span>{isIoc?"Threat-intel maintained":selected.generator}</span><span>{selected.validation_status}</span></div>
+                    <pre>{selected.query}</pre>
+                    <button className="copy-query" onClick={()=>navigator.clipboard?.writeText(selected.query).then(()=>setNotice("Query copied to clipboard."))}>Copy {platformName} query</button>
+                    <div className="rule-attack-context">
+                      <div><b>MITRE tactics</b><p>{mappedTactics.length?mappedTactics.map(t=>t.replaceAll("_"," ")).join(" · "):isIoc?"Not directly applicable — IOC matching detects indicator presence, not an adversary tactic.":"Mapping required — no tactic is currently linked to this use case."}</p></div>
+                      <div><b>MITRE techniques</b><p>{mappedTechniques.length?mappedTechniques.map(item=>`${item.id}${item.detail? ` · ${item.detail.name}`:""}`).join(" · "):isIoc?"Not directly applicable — map a technique only when the underlying telemetry and detection logic identify a specific adversary behaviour.":"Mapping required — add ATT&CK technique IDs to this use case to complete its mapping."}</p></div>
+                    </div>
+                  </section>;
+                })}</div>
               </section>;
-            })}</div>
-            <small className="muted">ATT&amp;CK: {(intents.find(x=>x.id===group.candidates[0]?.intent_id)?.attack_techniques||[]).join(", ")||"Not mapped"}</small>
+            })}
           </article>)}
           {filteredLibraryCandidates.length===0&&<p className="no-data">No rules match the selected filters.</p>}
           <div className="library-pagination"><button disabled={libraryOffset===0} onClick={()=>setLibraryOffset(x=>Math.max(0,x-100))}>Previous</button><span>Showing {libraryOffset+1}–{libraryOffset+candidates.length}</span><button disabled={candidates.length<100} onClick={()=>setLibraryOffset(x=>x+100)}>Next</button></div>
