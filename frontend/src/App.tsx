@@ -474,7 +474,7 @@ function App() {
   const libraryGroups = Object.values(filteredLibraryCandidates.reduce<Record<string, { key: string; title: string; subtitle: string; candidates: RuleCandidate[] }>>((groups, candidate) => {
     const intent = intents.find(x => x.id === candidate.intent_id);
     const rawTitle = intent?.title || candidate.name;
-    const iocBatch = rawTitle.match(/^ThreatWeave Active IOC Coverage:\\s*([a-z0-9_-]+):(\\d+)$/i);
+    const iocBatch = rawTitle.match(/^ThreatWeave Active IOC Coverage:\s*([a-z0-9_-]+):(\d+)$/i);
     const kind = iocBatch?.[1].toLowerCase();
     const names: Record<string,string> = {
       cve: "Vulnerability Exposure Monitoring",
@@ -743,7 +743,7 @@ function App() {
             {Object.values(group.candidates.reduce<Record<string, RuleCandidate[]>>((batches, candidate) => { (batches[candidate.intent_id] ||= []).push(candidate); return batches; }, {})).map(batchCandidates=>{
               const batchIntent=intents.find(x=>x.id===batchCandidates[0]?.intent_id);
               const batchTitle=batchIntent?.title||"Detection use case";
-              const batchMatch=batchTitle.match(/^ThreatWeave Active IOC Coverage:\\s*([a-z0-9_-]+):(\\d+)$/i);
+              const batchMatch=batchTitle.match(/^ThreatWeave Active IOC Coverage:\s*([a-z0-9_-]+):(\d+)$/i);
               const batchKey=batchCandidates[0]?.intent_id||group.key;
               return <section className="library-batch" key={batchKey}>
                 {batchMatch&&<div className="library-batch-head"><b>Batch {batchMatch[2]}</b><span>{batchCandidates[0]?.generation_metadata?.indicator_count??"—"} active indicators{batchMatch[1].startsWith("cve-cwe-")?` · ${batchMatch[1].replace("cve-cwe-","CWE-")}`:""}</span></div>}
