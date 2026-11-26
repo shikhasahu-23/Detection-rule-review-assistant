@@ -192,7 +192,7 @@ class TemplateGenerationProvider:
         elif platform is TargetPlatform.SIGMA:
             query = _intent_sigma(intent, title)
         else:
-            raise GenerationUnavailable("CrowdStrike query grammar verification is pending.")
+            raise GenerationUnavailable("CrowdStrike generation is not available until query grammar verification is complete.")
         return GeneratedRule(name=name + suffix, query=query)
 
 
