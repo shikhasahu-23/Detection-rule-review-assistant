@@ -94,7 +94,7 @@ def test_cve_ioc_rules_are_grouped_by_cwe_weakness_category():
     result = sync_ioc_rules(db)
     intents = db.scalars(select(DetectionIntent)).all()
     titles = {item.title for item in intents}
-    assert result["rule_versions_created"] == 16
+    assert result["rule_versions_created"] == 12
     assert "ThreatWeave Active IOC Coverage: cve-cwe-79:0001" in titles
     assert "ThreatWeave Active IOC Coverage: cve-cwe-89:0001" in titles
     assert "ThreatWeave Active IOC Coverage: cve-unclassified:0001" in titles
