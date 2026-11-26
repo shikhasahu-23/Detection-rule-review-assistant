@@ -59,11 +59,9 @@ def validate_candidate(platform: TargetPlatform, query: str, intent: dict | None
         warnings.append({"code": "YARAL_STATIC_ONLY", "message": "YARA-L compilation, UDM field compatibility and outcome semantics require Chronicle validation."})
     elif platform is TargetPlatform.SIGMA:
         try:
-            if yaml is None:
-                raise ValueError("PyYAML dependency is not installed")
             document = yaml.safe_load(normalized)
             if not isinstance(document, dict):
-                raise ValueError("Sigma document must be a YAML mapping")
+                raise TypeError("Sigma document must be a YAML mapping")
             required = {"title", "id", "logsource", "detection", "level"}
             missing = sorted(required - set(document))
             if missing:
@@ -71,7 +69,7 @@ def validate_candidate(platform: TargetPlatform, query: str, intent: dict | None
             if not isinstance(document.get("detection"), dict) or "condition" not in document.get("detection", {}):
                 errors.append({"code": "SIGMA_DETECTION", "message": "Sigma detection must be a mapping with a condition."})
             warnings.append({"code": "SIGMA_BACKEND_MAPPING", "message": "YAML is parsed; validate field names and backend compatibility with the target Sigma pipeline."})
-        except Exception as exc:
+        except (yaml.YAMLError, TypeError) as exc:
             errors.append({"code": "SIGMA_YAML", "message": f"Invalid Sigma YAML: {str(exc)[:200]}"})
     elif platform is TargetPlatform.CROWDSTRIKE:
         warnings.append({"code": "FALCON_VALIDATION_PENDING", "message": "CrowdStrike query grammar validation is not enabled until the current NG-SIEM contract is verified."})
