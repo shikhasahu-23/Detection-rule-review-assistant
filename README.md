@@ -12,8 +12,10 @@
 - Explore the MITRE ATT&CK Enterprise catalog and threat-relationship graph.
 - Review exported detection intents and rule candidates for Splunk, Chronicle, Sentinel and Sigma.
 - Inspect historical feed and pipeline snapshots.
+- Read attributed cybersecurity headlines from public RSS sources.
+- Explore local, evidence-backed correlation between archived detection intents and indicator references.
 
-The site is **read-only**. It does not provide accounts, shared writes, live API queries, CSV/STIX imports, on-demand feed sync, persistent rule creation, rule generation, test execution, or cyber-news ingestion. Controls that require backend writes are unavailable in the static deployment. Do not use it as a live SOC/SIEM console or as the sole source of operational intelligence.
+The site is **read-only**. It does not provide accounts, shared writes, live API queries, CSV/STIX imports, on-demand feed sync, persistent rule creation, rule generation, test execution, or on-demand news ingestion. Controls that require backend writes are unavailable in the static deployment. Do not use it as a live SOC/SIEM console or as the sole source of operational intelligence.
 
 ## Public data and refresh schedule
 
@@ -21,6 +23,9 @@ GitHub Actions refreshes these public sources every day at **08:00 India Standar
 
 - CISA Known Exploited Vulnerabilities (KEV).
 - MITRE ATT&CK Enterprise.
+- Public RSS headlines from CISA Advisories, BleepingComputer and The Hacker News.
+
+Cyber-news severity is a keyword-based triage label (not CVSS or a verified incident rating); impact text is a generic analyst prompt. Correlation is calculated in the browser only from exact CVE/indicator references present in exported detection-intent evidence and the published indicator snapshot.
 
 The refresh commits validated JSON to `frontend/public/data/`; GitHub Pages then republishes the updated static site. See [GitHub Pages portfolio operations](docs/GITHUB_PAGES_PORTFOLIO.md) for the data contract, provenance and troubleshooting.
 

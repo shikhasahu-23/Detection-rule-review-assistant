@@ -1,0 +1,7 @@
+{
+  "fetched_at": null,
+  "items": [],
+  "sources_failed": [],
+  "source_status": [],
+  "classification_note": "RSS news snapshot will be populated by the scheduled GitHub Actions workflow. Severity labels are keyword-based triage, not verified ratings."
+}
