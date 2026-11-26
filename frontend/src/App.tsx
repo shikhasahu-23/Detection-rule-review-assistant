@@ -293,7 +293,7 @@ function App() {
         setCandidates([...localRules, ...staticRules].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index));
         return;
       }
-      const currentId = selectedIntentId || items[0]?.id || "";
+      const currentId = selectedIntentId || mergedIntents[0]?.id || "";
       if (!selectedIntentId && currentId) setSelectedIntentId(currentId);
       if (currentId) {
         const rulesResponse = await localApi(`/api/v1/detection-intents/${currentId}/candidates`);
@@ -374,7 +374,14 @@ function App() {
       if (libraryValidation) params.set("validation_status", libraryValidation);
       const response = await localApi(`/api/v1/rules?${params.toString()}`);
       if (!response.ok) throw new Error("Unable to load the rule library.");
-      setCandidates(await response.json());
+      const staticRules: RuleCandidate[] = await response.json();
+      const localRules = readBrowserDrafts<RuleCandidate>(LOCAL_RULES_KEY);
+      const merged = [...localRules, ...staticRules].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index);
+      setCandidates(merged.filter(item =>
+        (!libraryQuery.trim() || item.name.toLowerCase().includes(libraryQuery.toLowerCase()) || item.query.toLowerCase().includes(libraryQuery.toLowerCase())) &&
+        (!libraryPlatform || item.platform === libraryPlatform) &&
+        (!libraryValidation || item.validation_status === libraryValidation)
+      ));
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to load the rule library.");
     }
