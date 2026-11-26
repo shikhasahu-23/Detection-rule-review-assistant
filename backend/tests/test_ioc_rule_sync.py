@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
+from app.models.detection import DetectionIntent
 from app.models.intelligence import Indicator
 from app.models.rule import RuleCandidate
 from app.schemas.detection import TargetPlatform
@@ -91,7 +92,7 @@ def test_cve_ioc_rules_are_grouped_by_cwe_weakness_category():
     db.commit()
 
     result = sync_ioc_rules(db)
-    intents = db.scalars(select(__import__("app.models.detection", fromlist=["DetectionIntent"]).DetectionIntent)).all()
+    intents = db.scalars(select(DetectionIntent)).all()
     titles = {item.title for item in intents}
     assert result["rule_versions_created"] == 16
     assert "ThreatWeave Active IOC Coverage: cve-cwe-79:0001" in titles
