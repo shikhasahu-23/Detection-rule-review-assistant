@@ -111,9 +111,12 @@ def main() -> None:
             statuses.append({"name": source, "status": "failed", "error": str(exc)[:240]})
             print(f"WARNING: {source} RSS fetch failed: {exc}")
     rows = sorted(items.values(), key=lambda item: item["published_at"], reverse=True)[:120]
-    if not rows:
-        raise RuntimeError("No RSS publisher returned articles; refusing to replace the last good cyber-news snapshot.")
     ROOT.mkdir(parents=True, exist_ok=True)
+    output = ROOT / "cyber-news.json"
+    if not rows and output.exists():
+        previous = json.loads(output.read_text(encoding="utf-8"))
+        rows = previous.get("items", [])
+        print("No RSS source responded; preserving the last published cyber-news snapshot.")
     payload = {"fetched_at": now, "items": rows, "sources_failed": failed, "source_status": statuses, "classification_note": "Severity is a keyword-based triage label, not a CVSS score or verified incident rating. Impact is a generic analyst prompt; read the linked source."}
     (ROOT / "cyber-news.json").write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
     print(f"Published {len(rows)} cyber-news stories from {len(SOURCES) - len(failed)} of {len(SOURCES)} RSS sources.")
