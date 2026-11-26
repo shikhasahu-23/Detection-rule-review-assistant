@@ -20,7 +20,8 @@ def sample_payload():
             "published": "2025-01-01T00:00:00.000",
             "lastModified": "2025-01-02T00:00:00.000",
             "descriptions": [{"lang": "en", "value": "A test vulnerability."}],
-            "metrics": {"cvssMetricV31": [{"cvssData": {"baseSeverity": "HIGH"}}]},
+            "metrics": {"cvssMetricV31": [{"cvssData": {"baseSeverity": "HIGH", "baseScore": 8.8}}]},
+            "weaknesses": [{"description": [{"lang": "en", "value": "CWE-79"}]}],
         }
     }]}
 
@@ -35,6 +36,7 @@ def test_nvd_ingestion_normalizes_and_preserves_evidence():
     assert indicator.indicator_type == "cve"
     assert indicator.severity == "high"
     assert "nvd" in indicator.tags
+    assert "cwe:CWE-79" in indicator.tags
     evidence = db.scalar(select(SourceEvidence))
     assert evidence.source_reference == "NVD:CVE-2025-12345"
     assert db.scalar(select(FeedRun).where(FeedRun.status == "succeeded")) is not None
