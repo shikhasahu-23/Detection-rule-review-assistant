@@ -600,9 +600,9 @@ function App() {
       <div className="notice"><AlertTriangle size={16}/> Read-only portfolio snapshot. Public CISA KEV and MITRE ATT&amp;CK data refresh daily at 08:00 IST; imports, manual sync and persistent writes require a backend and are disabled in this GitHub Pages deployment.</div>\n      {error && <div className="notice error"><AlertTriangle size={16}/>{error}<button onClick={loadData}>Retry</button></div>}
       {notice && <div className="notice success"><CheckCircle2 size={16}/>{notice}</div>}
       {page === "Cyber news" ? <>
-        <section className="banner"><Newspaper/><div><b>Cybersecurity headlines from trusted public sources</b><p>Short summaries, practical impact and severity labels to help you scan what matters.</p></div><span>LIVE FEED</span></section>
+        <section className="banner"><Newspaper/><div><b>Cybersecurity headlines from trusted public sources</b><p>Short summaries, practical impact and severity labels to help you scan what matters.</p></div><span>NOT INCLUDED</span></section>
         <section className="panel intel-panel">
-          <div className="panelhead"><div><b>Latest cyber news</b><p>{newsFetchedAt ? `Fetched ${new Date(newsFetchedAt).toLocaleString()}` : "Fetching the latest articles from public RSS feeds"}</p></div><button onClick={()=>void loadCyberNews()} disabled={loadingNews}><RefreshCw size={15} className={loadingNews?"spin":""}/> Refresh news</button></div>
+          <div className="panelhead"><div><b>Latest cyber news</b><p>{newsFetchedAt ? `Fetched ${new Date(newsFetchedAt).toLocaleString()}` : "Cyber-news ingestion is not included in this static release."}</p></div><button disabled title="Cyber-news ingestion requires a backend"><RefreshCw size={15} className={loadingNews?"spin":""}/> Refresh news</button></div>
           <div className="library-filters">
             <select value={newsWindow} onChange={e=>setNewsWindow(e.target.value)}><option value="24h">Last 24 hours</option><option value="7d">Last 7 days</option><option value="all">All fetched</option></select>
             <select value={newsSeverity} onChange={e=>setNewsSeverity(e.target.value)}><option value="">All severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
@@ -840,7 +840,7 @@ function App() {
         </section>
       </> : page === "Effectiveness" ? <>
         <section className="banner"><Activity/><div><b>Detection quality and ATT&CK coverage</b><p>Transparent workflow-readiness indicators based on explicit mappings, validation, telemetry hints and offline test runs.</p></div><span>PRIORITIZATION</span></section>
-        <div className="effectiveness-toolbar"><small>Updated from current database records</small><button onClick={()=>void loadEffectiveness()} disabled={loadingEffectiveness}><RefreshCw size={14} className={loadingEffectiveness?"spin":""}/> Refresh metrics</button></div>
+        <div className="effectiveness-toolbar"><small>Historical database metrics are not refreshed in the static portfolio</small><button disabled title="Effectiveness metrics require live test-run data"><RefreshCw size={14} className={loadingEffectiveness?"spin":""}/> Refresh metrics</button></div>
         {effectiveness ? <>
           <section className="stats">
             {[
