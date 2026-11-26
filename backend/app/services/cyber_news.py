@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import re
+import urllib.error
 import urllib.request
 import xml.etree.ElementTree as ET
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from email.utils import parsedate_to_datetime
 from html import unescape
 
@@ -70,12 +71,12 @@ def get_cyber_news(limit: int = 60) -> dict:
                 description = _clean(_text(entry, ("description", "summary", "content", "encoded")))
                 published_raw = _text(entry, ("pubdate", "published", "updated", "date"))
                 try:
-                    published = parsedate_to_datetime(published_raw) if published_raw else datetime.now(timezone.utc)
+                    published = parsedate_to_datetime(published_raw) if published_raw else datetime.now(UTC)
                     if published.tzinfo is None:
-                        published = published.replace(tzinfo=timezone.utc)
+                        published = published.replace(tzinfo=UTC)
                 except (TypeError, ValueError, OverflowError):
                     try:
-                        published = datetime.fromisoformat(published_raw.replace("Z", "+00:00"))
+                        published = datetime.fromisoformat(published_raw)
                     except (TypeError, ValueError):
                         published = datetime.now(timezone.utc)
                 if not title or not link:
@@ -88,7 +89,7 @@ def get_cyber_news(limit: int = 60) -> dict:
                     "impact": _impact(combined, severity), "severity": severity,
                     "source": source, "url": link, "published_at": published.isoformat(),
                 })
-        except Exception as exc:
+        except (urllib.error.URLError, TimeoutError, OSError, ET.ParseError, ValueError) as exc:
             feed_errors.append(f"{source}: {type(exc).__name__}")
     unique = {story["url"]: story for story in stories}
     ordered = sorted(unique.values(), key=lambda story: story["published_at"], reverse=True)
