@@ -37,6 +37,11 @@ jobs:
               assert isinstance(batch, list)
               rules.extend(batch)
           assert len(rules) == 344, f"Rule count mismatch: {len(rules)}"
+          historical = []
+          for n in range(1, 12):
+              rows = json.loads((root / f"indicators-history-{n:02d}.json").read_text())
+              historical.extend(rows)
+          assert len(historical) == 5225, f"Indicator archive count mismatch: {len(historical)}"
           assert len(json.loads((root / "attack-techniques.json").read_text())) >= 600
           print(f"PASS: {len(rules)} rules, {len(json.loads((root / 'attack-techniques.json').read_text()))} ATT&CK techniques")
           PY
