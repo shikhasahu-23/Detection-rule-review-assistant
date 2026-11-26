@@ -18,7 +18,7 @@ const localApi = async (path: string, init?: RequestInit): Promise<Response> => 
   }
   let data: any = [];
   if (path.includes("/intelligence/summary")) data = await readData("summary.json");
-  else if (path.includes("/intelligence/indicators")) data = await readData("indicators.json");
+  else if (path.includes("/intelligence/indicators")) data = (await readData("indicators.json")).map((item: any) => ({ ...item, sources: (item.sources || []).map((source: any) => typeof source === "string" ? source : source.name), created_at: item.created_at || item.last_seen || item.date_added || new Date().toISOString(), cvss_score: item.cvss_score ?? null }));
   else if (path.includes("/intelligence/feeds")) data = await readData("feeds.json");
   else if (path.includes("/intelligence/attack-techniques")) data = await readData("attack-techniques.json");
   else if (path.includes("/detection-intents") && !path.includes("/candidates")) data = await readData("detection-intents.json");
@@ -567,16 +567,16 @@ function App() {
       <label>WORKSPACE</label>
       <div className="workspace"><span>S</span><div><b>Security Engineering</b><small>Team workspace</small></div><ChevronRight size={15}/></div>
       <nav>{nav.map(({ label, icon: Icon }) => <button key={label} className={page === label ? "nav active" : "nav"} onClick={() => setPage(label)}><Icon size={17}/>{label}</button>)}</nav>
-      <div className="sidebottom"><span className="live-dot"/> Platform initialized<hr/><div className="user"><b>SE</b><div>Team member<small>Workspace access</small></div></div></div>
+      <div className="sidebottom"><span className="live-dot"/> Static snapshot<hr/><div className="user"><b>SE</b><div>Team member<small>Workspace access</small></div></div></div>
     </aside>
     <main>
-      <header><span>Workspace　›　<b>{page}</b></span><small><span className="live-dot"/> PRODUCTION</small></header>
+      <header><span>Workspace　›　<b>{page}</b></span><small><span className="live-dot"/> STATIC PORTFOLIO</small></header>
       <section className="heading">
         <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>{page === "Threat intelligence" ? "Threat Intelligence Center" : page === "ATT&CK catalog" ? "MITRE ATT&CK Catalog" : page === "Rule generator" ? "Detection Rule Generator" : page === "Correlation" ? "Intelligence Correlation" : page === "Threat graph" ? "Threat Entity Graph" : page === "Cyber news" ? "Cyber News & Security Briefing" : "Good morning, team 👋"}</h1><p>Monitor threat intelligence, preserve source evidence, and prepare trusted inputs for detection engineering.</p></div>
         {page === "Threat intelligence" && <div className="feed-actions"><button onClick={startPipeline} disabled={pipelineQueued}><Network size={16} className={pipelineQueued ? "spin" : ""}/>{pipelineQueued ? "Queueing…" : "Run full pipeline"}</button><button onClick={syncCisa} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncing ? "spin" : ""}/>{syncing ? "Syncing CISA…" : "Sync CISA KEV"}</button><button onClick={syncNvd} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncingNvd ? "spin" : ""}/>{syncingNvd ? "Syncing NVD…" : "Sync NVD CVEs"}</button><label className="upload-button">{uploadingCsv?"Importing CSV…":"Import CSV"}<input type="file" accept=".csv,text/csv" disabled={uploadingCsv} onChange={e=>{const input=e.currentTarget;const file=input.files?.[0];input.value="";if(file)void importCsv(file);}}/></label></div>}
         {page === "ATT&CK catalog" && <button onClick={syncAttack} disabled={syncingAttack}><RefreshCw size={16} className={syncingAttack ? "spin" : ""}/>{syncingAttack ? "Syncing catalog…" : "Sync ATT&CK"}</button>}
       </section>
-      {error && <div className="notice error"><AlertTriangle size={16}/>{error}<button onClick={loadData}>Retry</button></div>}
+      <div className="notice"><AlertTriangle size={16}/> Read-only portfolio snapshot. Public CISA KEV and MITRE ATT&amp;CK data refresh daily at 08:00 IST; imports, manual sync and persistent writes require a backend and are disabled in this GitHub Pages deployment.</div>\n      {error && <div className="notice error"><AlertTriangle size={16}/>{error}<button onClick={loadData}>Retry</button></div>}
       {notice && <div className="notice success"><CheckCircle2 size={16}/>{notice}</div>}
       {page === "Cyber news" ? <>
         <section className="banner"><Newspaper/><div><b>Cybersecurity headlines from trusted public sources</b><p>Short summaries, practical impact and severity labels to help you scan what matters.</p></div><span>LIVE FEED</span></section>
@@ -605,7 +605,7 @@ function App() {
           </div>
         </section>
       </> : page === "Threat intelligence" ? <>
-        <section className="banner"><Radar/><div><b>CISA Known Exploited Vulnerabilities</b><p>CISA KEV and NVD CVE catalogues · fixed trusted HTTPS sources · idempotent ingestion with source provenance.</p></div><span>{feeds.find(f => f.name === "CISA KEV")?.status?.toUpperCase() || "NOT SYNCED"}</span></section>
+        <section className="banner"><Radar/><div><b>CISA Known Exploited Vulnerabilities</b><p>Daily public CISA KEV and MITRE ATT&CK snapshots with source attribution. CVSS is shown only when supplied by NVD.</p></div><span>{feeds.find(f => f.name === "CISA KEV")?.status?.toUpperCase() || "NOT SYNCED"}</span></section>
         <section className="stats">{stats.map(({ label, value, note, icon: Icon }) => <article key={label}><div>{label}<Icon size={18}/></div><strong>{loading ? "…" : value.toLocaleString?.() ?? value}</strong><small>{note}</small></article>)}</section>
         <section className="panel intel-panel">
           <div className="panelhead"><div><b>Indicator inventory</b><p>Quickly narrow current intelligence by recency, impact and status</p></div><span>{filtered.length} matching records</span></div>
@@ -618,7 +618,7 @@ function App() {
           </div>
           <small className="muted">Severity is source-provided or derived from CVSS. CVSS is the vulnerability base score (0–10), shown only when NVD provides it. Confidence is a feed-specific ingestion value, not a universal risk score. Impact is currently grouped from severity.</small>
           <div className="scoring-guide"><b>How severity and scores are identified</b>
-            <span><strong>Severity</strong> NVD uses the CVSS baseSeverity label (CVSS v3/v4 bands: Critical 9.0–10.0, High 7.0–8.9, Medium 4.0–6.9, Low 0.1–3.9; 0.0 is None). CISA KEV currently uses High when known ransomware campaign use is flagged, otherwise Medium. URLhaus, OpenPhish, SSLBL and Feodo currently receive a High feed default. Custom CSV uses the supplied severity, or Unknown if omitted.</span>
+            <span><strong>Severity</strong> NVD uses the CVSS baseSeverity label (CVSS v3/v4 bands: Critical 9.0–10.0, High 7.0–8.9, Medium 4.0–6.9, Low 0.1–3.9; 0.0 is None). CISA KEV priority is labelled High when the feed flags known ransomware campaign use, otherwise Medium. This is an operational priority heuristic, not a CVSS severity assessment. This static portfolio refresh currently includes CISA KEV only; NVD CVSS is blank unless supplied by an NVD-backed record.</span>
             <span><strong>CVSS score</strong> The NVD CVSS baseScore (0–10) from CVSS v4.0, v3.1, v3.0 or v2 metrics. It is blank when no NVD score is available. It is not calculated by ThreatWeave.</span>
             <span><strong>Confidence</strong> Current configured feed values: NVD 90, CISA KEV 100, URLhaus 95, OpenPhish 85, SSLBL 90, Feodo 95. Custom CSV defaults to 50 if omitted. These are source-specific defaults, not a calibrated probability. Where multiple feeds contribute to one indicator, the stored indicator confidence is not separately calibrated per source.</span>
             <span><strong>Important</strong> Severity, CVSS and confidence are different fields. Do not compare confidence percentages as though they were vulnerability scores.</span>
