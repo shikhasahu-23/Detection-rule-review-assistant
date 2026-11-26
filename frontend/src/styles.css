@@ -252,3 +252,21 @@
 .correlation-path i{font-size:10px;color:var(--muted,#94a3b8);font-style:normal;text-align:center}
 .correlation-context{background:rgba(59,130,246,.045)}
 @media(max-width:760px){.correlation-flow{grid-template-columns:1fr;gap:7px}.correlation-arrow{padding:1px}.correlation-arrow span{font-size:19px;transform:rotate(90deg)}.correlation-legend{flex-direction:column}.correlation-path{flex-direction:column}.correlation-path i{max-width:100%}}
+
+
+/* Cyber News: readable incident brief and analyst context */
+.news-analysis{margin-top:14px;padding:15px;border:1px solid var(--border,rgba(148,163,184,.2));border-radius:12px;background:rgba(59,130,246,.045)}
+.news-analysis-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:13px}
+.news-analysis-heading b{font-size:14px}
+.news-analysis-heading small,.news-evidence-note{font-size:11px;color:var(--muted,#94a3b8)}
+.news-facts{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.news-facts>div{padding:11px;border-radius:9px;background:rgba(148,163,184,.06);min-width:0}
+.news-facts label,.news-actions>label{display:block;font-size:10px;letter-spacing:.08em;font-weight:800;color:var(--muted,#94a3b8);margin-bottom:6px}
+.news-facts b{display:block;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.news-actions{margin-top:13px}
+.news-actions ul{margin:7px 0 0;padding-left:19px}
+.news-actions li{font-size:12px;line-height:1.55;margin:4px 0}
+.news-evidence-note{line-height:1.55;margin:12px 0 0}
+.news-source{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.news-source small{font-size:11px;color:var(--muted,#94a3b8);margin-left:auto}
+@media(max-width:640px){.news-facts{grid-template-columns:1fr}.news-analysis{padding:12px}.news-source small{margin-left:0}}
