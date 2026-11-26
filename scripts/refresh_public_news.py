@@ -33,7 +33,7 @@ def plain(value: str) -> str:
         parser.feed(unescape(value or ""))
     except Exception:
         pass
-    return re.sub(r"\\s+", " ", " ".join(parser.parts)).strip()
+    return re.sub(r"\s+", " ", " ".join(parser.parts)).strip()
 
 def tag_text(node: ET.Element, names: tuple[str, ...]) -> str:
     for child in node.iter():
@@ -115,7 +115,7 @@ def main() -> None:
         raise RuntimeError("No RSS publisher returned articles; refusing to replace the last good cyber-news snapshot.")
     ROOT.mkdir(parents=True, exist_ok=True)
     payload = {"fetched_at": now, "items": rows, "sources_failed": failed, "source_status": statuses, "classification_note": "Severity is a keyword-based triage label, not a CVSS score or verified incident rating. Impact is a generic analyst prompt; read the linked source."}
-    (ROOT / "cyber-news.json").write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\\n", encoding="utf-8")
+    (ROOT / "cyber-news.json").write_text(json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + "\n", encoding="utf-8")
     print(f"Published {len(rows)} cyber-news stories from {len(SOURCES) - len(failed)} of {len(SOURCES)} RSS sources.")
 
 if __name__ == "__main__":
