@@ -583,7 +583,7 @@ function App() {
           </div>
           <small className="muted">Severity is source-provided or derived from CVSS. CVSS is the vulnerability base score (0–10), shown only when NVD provides it. Confidence is a feed-specific ingestion value, not a universal risk score. Impact is currently grouped from severity.</small>
           <div className="scoring-guide"><b>How severity and scores are identified</b>
-            <span><strong>Severity</strong> NVD uses the CVSS baseSeverity label. CISA KEV currently uses High when known ransomware campaign use is flagged, otherwise Medium. URLhaus, OpenPhish, SSLBL and Feodo currently receive a High feed default. Custom CSV uses the supplied severity, or Unknown if omitted.</span>
+            <span><strong>Severity</strong> NVD uses the CVSS baseSeverity label (CVSS v3/v4 bands: Critical 9.0–10.0, High 7.0–8.9, Medium 4.0–6.9, Low 0.1–3.9; 0.0 is None). CISA KEV currently uses High when known ransomware campaign use is flagged, otherwise Medium. URLhaus, OpenPhish, SSLBL and Feodo currently receive a High feed default. Custom CSV uses the supplied severity, or Unknown if omitted.</span>
             <span><strong>CVSS score</strong> The NVD CVSS baseScore (0–10) from CVSS v4.0, v3.1, v3.0 or v2 metrics. It is blank when no NVD score is available. It is not calculated by ThreatWeave.</span>
             <span><strong>Confidence</strong> Current configured feed values: NVD 90, CISA KEV 100, URLhaus 95, OpenPhish 85, SSLBL 90, Feodo 95. Custom CSV defaults to 50 if omitted. These are source-specific defaults, not a calibrated probability. Where multiple feeds contribute to one indicator, the stored indicator confidence is not separately calibrated per source.</span>
             <span><strong>Important</strong> Severity, CVSS and confidence are different fields. Do not compare confidence percentages as though they were vulnerability scores.</span>
@@ -752,7 +752,7 @@ function App() {
               const batchMatch=batchTitle.match(/^ThreatWeave Active IOC Coverage:\s*([a-z0-9_-]+):(\d+)$/i);
               const batchKey=batchCandidates[0]?.intent_id||group.key;
               return <section className="library-batch" key={batchKey}>
-                {batchMatch&&<div className="library-batch-head"><b>Batch {batchMatch[2]}</b><span>{batchCandidates[0]?.generation_metadata?.indicator_count??"—"} active indicators{batchMatch[1].startsWith("cve-cwe-")?` · ${batchMatch[1].replace("cve-cwe-","CWE-")}`:""}</span></div>}
+                {batchMatch&&<div className="library-batch-head"><b>Indicator set</b><span>{batchCandidates[0]?.generation_metadata?.indicator_count??"—"} active indicators{batchMatch[1].startsWith("cve-cwe-")?` · ${batchMatch[1].replace("cve-cwe-","CWE-")}`:""}</span></div>}
                 <div className="library-platform-grid">{Object.entries(batchCandidates.reduce<Record<string, RuleCandidate[]>>((byPlatform, candidate) => { (byPlatform[candidate.platform] ||= []).push(candidate); return byPlatform; }, {})).map(([platform, versions])=>{
                   const ordered=[...versions].sort((a,b)=>b.version-a.version);
                   const selectionKey=group.key+"::"+batchKey+"::"+platform;
