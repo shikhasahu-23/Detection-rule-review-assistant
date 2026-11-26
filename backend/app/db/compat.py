@@ -56,6 +56,13 @@ def ensure_threat_graph_schema(engine: Engine) -> None:
                     connection.exec_driver_sql(
                         f"ALTER TABLE {table_name} ALTER COLUMN confidence DROP DEFAULT"
                     )
+                    # The previous importer used 50 as its fallback for
+                    # absent STIX confidence. Historical 50s cannot be distinguished
+                    # from genuine source scores, so treat them as unknown until
+                    # the source is re-imported with an explicit value.
+                    connection.exec_driver_sql(
+                        f"UPDATE {table_name} SET confidence = NULL WHERE confidence = 50"
+                    )
 
         # New entity attributes are additive and nullable: feeds that do not
         # publish severity or impact remain explicitly unknown.
