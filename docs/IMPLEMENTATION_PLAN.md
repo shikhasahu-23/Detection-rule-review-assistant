@@ -1,3 +1,5 @@
+> **Status note:** This document is the retained full-platform backend roadmap, not a statement that every phase is currently deployed. The current public release is the read-only GitHub Pages portfolio; its exact capabilities, static data refresh and limitations are documented in [GitHub Pages portfolio operations](GITHUB_PAGES_PORTFOLIO.md).
+
 # Implementation Plan
 
 ## Delivery objective
