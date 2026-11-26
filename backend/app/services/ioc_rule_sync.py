@@ -44,8 +44,11 @@ def _chunk_values(values: list[str]) -> list[list[str]]:
     return chunks
 
 
-def _sync_chunk(db: Session, provider, kind: str, values: list[str], rows: list[Indicator], chunk_number: int) -> tuple[int, int, int, list[str]]:
-    title = f"ThreatWeave Active IOC Coverage: {kind}:{chunk_number:04d}"
+def _sync_chunk(
+    db: Session, provider, kind: str, group_key: str,
+    values: list[str], rows: list[Indicator], chunk_number: int,
+) -> tuple[int, int, int, list[str]]:
+    title = f"ThreatWeave Active IOC Coverage: {group_key}:{chunk_number:04d}"
     intent = db.scalar(select(DetectionIntent).where(DetectionIntent.title == title).limit(1))
     evidence = [
         {
@@ -61,7 +64,7 @@ def _sync_chunk(db: Session, provider, kind: str, values: list[str], rows: list[
     if intent is None:
         intent = DetectionIntent(
             title=title,
-            description=f"Automatically maintained detection coverage for active {kind} indicators, batch {chunk_number}.",
+            description=f"Automatically maintained detection coverage for active {kind} indicators in {group_key}, batch {chunk_number}.",
             behavior=f"Match observed telemetry against the current active {kind} threat-intelligence indicators.",
             severity="high",
             attack_techniques=[],
@@ -96,6 +99,7 @@ def _sync_chunk(db: Session, provider, kind: str, values: list[str], rows: list[
         "evidence": evidence,
         "test_scenarios": [],
         "indicator_type": kind,
+        "vulnerability_category": group_key if kind == "cve" else None,
         "indicator_values": values,
     }
 
@@ -143,6 +147,7 @@ def _sync_chunk(db: Session, provider, kind: str, values: list[str], rows: list[
                     "validation_scope": get_platform_contract(platform).validation_scope,
                     "rule_family": "active_ioc_coverage",
                     "indicator_type": kind,
+                    "vulnerability_category": group_key if kind == "cve" else None,
                     "indicator_count": len(values),
                     "ioc_fingerprint": fingerprint,
                     "previous_version": latest.version if latest else None,
@@ -178,11 +183,19 @@ def sync_ioc_rules(db: Session, *, provider=None, indicator_limit: int = 50000) 
     ).all()
 
     groups: dict[str, list[Indicator]] = {}
+    group_types: dict[str, str] = {}
     unsupported: dict[str, int] = {}
     for indicator in indicators:
         kind = indicator.indicator_type.lower()
         if kind in SUPPORTED_IOC_TYPES and indicator.value.strip():
-            groups.setdefault(kind, []).append(indicator)
+            if kind == "cve":
+                cwe = next((tag[4:].upper() for tag in (indicator.tags or [])
+                            if isinstance(tag, str) and tag.lower().startswith("cwe:") and tag[4:].upper().startswith("CWE-")), None)
+                group_key = f"cve-{cwe.lower()}" if cwe else "cve-unclassified"
+            else:
+                group_key = kind
+            groups.setdefault(group_key, []).append(indicator)
+            group_types[group_key] = kind
         elif kind not in SUPPORTED_IOC_TYPES:
             unsupported[kind] = unsupported.get(kind, 0) + 1
 
@@ -191,15 +204,16 @@ def sync_ioc_rules(db: Session, *, provider=None, indicator_limit: int = 50000) 
     processed: dict[str, dict] = {}
     active_chunks: set[str] = set()
 
-    for kind, rows in groups.items():
+    for group_key, rows in groups.items():
+        kind = group_types[group_key]
         values = sorted({row.value.strip() for row in rows})
         chunk_count = 0
         for chunk_values in _chunk_values(values):
             chunk_count += 1
-            chunk_key = f"{kind}:{chunk_count:04d}"
+            chunk_key = f"{group_key}:{chunk_count:04d}"
             active_chunks.add(chunk_key)
             new_count, skip_count, fail_count, chunk_errors = _sync_chunk(
-                db, active_provider, kind, chunk_values, rows, chunk_count
+                db, active_provider, kind, group_key, chunk_values, rows, chunk_count
             )
             created += new_count
             skipped += skip_count
