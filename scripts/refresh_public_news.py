@@ -65,6 +65,37 @@ def classify(headline: str, summary: str) -> tuple[str, str]:
         impact = "Review the original report to determine relevance to your environment and defensive actions."
     return severity, impact
 
+def enrich(headline: str, summary: str) -> dict:
+    """Extract cautious, source-text-backed context; never invent attribution."""
+    text = f"{headline}. {summary}"
+    lower = text.lower()
+    cves = sorted(set(re.findall(r"CVE-\\d{4}-\\d{4,}", text, re.I)))
+    actors = sorted(set(re.findall(r"\\b(?:APT\\s?\\d{1,3}|FIN\\d{1,3}|Lazarus Group|Sandworm|Volt Typhoon|Scattered Spider|Cl0p|LockBit|Akira|Rhysida|Qilin|BlackCat)\\b", text, re.I)))
+    malware = sorted(set(re.findall(r"\\b(?:ransomware|infostealer|trojan|backdoor|botnet|rootkit|spyware|loader)\\b", text, re.I)))
+    event = "Vulnerability / exploitation" if any(x in lower for x in ("cve-", "vulnerability", "zero-day", "zero day", "exploit")) else "Data breach / exposure" if any(x in lower for x in ("breach", "data leak", "stolen", "exposed", "unauthorized access")) else "Malware / intrusion" if any(x in lower for x in ("malware", "ransomware", "backdoor", "botnet", "infostealer")) else "Security advisory / research"
+    vector = []
+    for term, label in (("phishing", "Phishing"), ("ransomware", "Ransomware"), ("remote code execution", "Remote code execution"), ("sql injection", "SQL injection"), ("zero-day", "Zero-day exploitation"), ("supply chain", "Software supply chain"), ("credential", "Credential compromise"), ("malicious package", "Malicious software package"), ("path traversal", "Path traversal")):
+        if term in lower:
+            vector.append(label)
+    action = []
+    if cves or "vulnerability" in lower or "zero-day" in lower:
+        action += ["Identify affected product versions and internet-facing assets", "Apply the vendor fix or documented mitigation; track remediation"]
+    if any(x in lower for x in ("breach", "stolen", "exposed", "unauthorized access")):
+        action += ["Review access, identity and data-exfiltration logs for the reported period", "Validate the affected data and follow the organisation's incident-response process"]
+    if any(x in lower for x in ("phishing", "credential", "infostealer")):
+        action += ["Hunt for suspicious sign-ins, mailbox rules and credential theft indicators"]
+    if not action:
+        action = ["Read the source advisory and assess relevance to your environment"]
+    return {
+        "event_type": event,
+        "related_cves": cves,
+        "mentioned_threat_actors": actors,
+        "malware_or_tooling": malware,
+        "attack_vectors": vector,
+        "defender_actions": list(dict.fromkeys(action)),
+        "analysis_note": "Extracted from the published headline and RSS description. Missing fields mean the source snippet did not provide enough evidence; verify details in the original report.",
+    }
+
 def main() -> None:
     now = datetime.now(timezone.utc).isoformat()
     items: dict[str, dict] = {}
@@ -102,7 +133,7 @@ def main() -> None:
                 items[key] = {
                     "id": key, "headline": headline[:300],
                     "summary": (description or headline)[:1200],
-                    "impact": impact, "severity": severity, "source": source,
+                    "impact": impact, "severity": severity, **enrich(headline, description), "source": source,
                     "url": link, "published_at": published,
                 }
                 count += 1
