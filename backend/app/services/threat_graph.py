@@ -31,10 +31,45 @@ def _timestamp(value: object) -> datetime | None:
         return None
 
 
-def _confidence(value: object) -> int:
+def _confidence(value: object) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int):
-        return 50
+        return None
     return max(0, min(MAX_CONFIDENCE, value))
+
+
+def _severity(obj: dict[str, Any]) -> str | None:
+    """Use explicit source severity, or a vulnerability's explicit CVSS base score."""
+    raw = next((obj.get(key) for key in (
+        "severity", "x_severity", "x_opencti_severity",
+    ) if obj.get(key) is not None), None)
+    if isinstance(raw, str):
+        normalized = raw.strip().lower()
+        aliases = {
+            "informational": "low", "info": "low", "minor": "low",
+            "moderate": "medium", "med": "medium",
+            "severe": "high", "major": "high",
+        }
+        normalized = aliases.get(normalized, normalized)
+        if normalized in {"critical", "high", "medium", "low"}:
+            return normalized
+    if obj.get("type") == "vulnerability":
+        score = obj.get("x_cvss_v3_base_score", obj.get("x_cvss_v2_base_score"))
+        if isinstance(score, (int, float)) and not isinstance(score, bool) and 0 <= score <= 10:
+            return "critical" if score >= 9 else "high" if score >= 7 else "medium" if score >= 4 else "low"
+    return None
+
+
+def _impact(obj: dict[str, Any]) -> str | None:
+    """Preserve only an explicit source-provided impact statement."""
+    for key in ("impact", "impact_description", "x_impact", "x_opencti_impact"):
+        value = obj.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()[:4000]
+        if isinstance(value, list):
+            items = [item.strip() for item in value if isinstance(item, str) and item.strip()]
+            if items:
+                return "; ".join(items)[:4000]
+    return None
 
 
 def _external_url(obj: dict[str, Any]) -> str | None:
@@ -92,6 +127,8 @@ def import_stix_bundle(
                 "name": name[:300],
                 "description": str(obj.get("description") or "")[:12000],
                 "confidence": _confidence(obj.get("confidence")),
+                "severity": _severity(obj),
+                "impact": _impact(obj),
                 "source_name": source_name.strip(),
                 "source_reference": stix_id[:512],
                 "source_url": _external_url(obj),
@@ -110,7 +147,7 @@ def import_stix_bundle(
                 # Preserve canonical source fields; source-specific provenance is
                 # recorded separately for every importing feed.
                 for key in (
-                    "name", "description", "confidence", "revoked", "deprecated",
+                    "name", "description", "confidence", "severity", "impact", "revoked", "deprecated",
                     "first_seen", "last_seen",
                 ):
                     setattr(entity, key, values[key])
