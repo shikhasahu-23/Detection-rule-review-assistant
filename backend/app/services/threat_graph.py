@@ -146,11 +146,13 @@ def import_stix_bundle(
             else:
                 # Preserve canonical source fields; source-specific provenance is
                 # recorded separately for every importing feed.
-                for key in (
-                    "name", "description", "confidence", "severity", "impact", "revoked", "deprecated",
-                    "first_seen", "last_seen",
-                ):
+                for key in ("name", "description", "revoked", "deprecated", "first_seen", "last_seen"):
                     setattr(entity, key, values[key])
+                # Do not erase previously known source-backed metadata when a
+                # later source omits that field. Per-source values remain in evidence.
+                for key in ("confidence", "severity", "impact"):
+                    if values[key] is not None:
+                        setattr(entity, key, values[key])
                 updated_entities += 1
             db.flush()
             entity_evidence = db.scalar(select(ThreatEntityEvidence).where(
