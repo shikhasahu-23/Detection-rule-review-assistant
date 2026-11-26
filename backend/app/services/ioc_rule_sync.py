@@ -219,7 +219,7 @@ def sync_ioc_rules(db: Session, *, provider=None, indicator_limit: int = 50000) 
             skipped += skip_count
             failed += fail_count
             errors.extend(chunk_errors)
-        processed[kind] = {"active_indicators": len(values), "rule_batches": chunk_count}
+        processed[group_key] = {"indicator_type": kind, "active_indicators": len(values), "rule_batches": chunk_count}
 
     # Mark old batches stale when their indicators expire or disappear from the active set.
     stale_intents = db.scalars(
