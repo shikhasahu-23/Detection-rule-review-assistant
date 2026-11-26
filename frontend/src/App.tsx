@@ -778,6 +778,19 @@ function App() {
                 <div className="news-actions"><label>WHAT DEFENDERS SHOULD DO</label><ul>{(item.defender_actions?.length ? item.defender_actions : ["Open the original report and assess whether your environment is affected"]).map((action,index)=><li key={index}>{action}</li>)}</ul></div>
                 <p className="news-evidence-note">{item.analysis_note || "This is a triage summary. Confirm technical details and attribution in the original publisher report. ATT&CK mappings are not inferred from headlines alone."}</p>
               </div>
+              <details className="news-investigation">
+                <summary><span><b>Incident investigation</b><small>Explore the reported activity, evidence and SOC follow-up</small></span><span className="investigation-open">Open investigation <ArrowUpRight size={14}/></span></summary>
+                <div className="investigation-body">
+                  <section className="investigation-story"><label>WHAT THE REPORT DESCRIBES</label><p>{item.summary}</p><small>Reported by {item.source} · {new Date(item.published_at).toLocaleString()}</small></section>
+                  <div className="investigation-grid">
+                    <section><label>OBSERVED INDICATORS</label>{item.related_cves?.length ? <p><b>CVEs:</b> {item.related_cves.join(", ")}</p> : null}{item.mentioned_threat_actors?.length ? <p><b>Named actors:</b> {item.mentioned_threat_actors.join(", ")}</p> : null}{item.malware_or_tooling?.length ? <p><b>Malware / tools:</b> {item.malware_or_tooling.join(", ")}</p> : null}{!item.related_cves?.length&&!item.mentioned_threat_actors?.length&&!item.malware_or_tooling?.length ? <p>No named CVE, actor or malware was extracted from the available source snippet.</p> : null}</section>
+                    <section><label>HUNT & DETECTION STARTING POINTS</label><ul>{(item.defender_actions?.length ? item.defender_actions : ["Review the original report and identify relevant telemetry"]).map((action,index)=><li key={index}>{action}</li>)}</ul><p className="investigation-caveat">Use these as triage prompts, then tailor searches to the affected technology and your available logs.</p></section>
+                    <section><label>ATT&CK MAPPING</label><p>Not supplied by the current news feed. No tactic or technique is inferred from the headline alone.</p></section>
+                    <section><label>INTELLIGENCE CONFIDENCE</label><p>Source-derived headline and RSS description only. Confirm exploit details, affected versions, indicators and attribution in the full publisher report.</p></section>
+                  </div>
+                  <a className="investigation-source-link" href={item.url} target="_blank" rel="noreferrer">Read the full source report <ArrowUpRight size={14}/></a>
+                </div>
+              </details>
               <div className="news-source"><span>SOURCE · {item.source}</span><a href={item.url} target="_blank" rel="noreferrer">Read original report ↗</a><small>Published {new Date(item.published_at).toLocaleString()}</small></div>
             </article>)}
             {!loadingNews&&cyberNews.length===0&&<p className="no-data">No published stories are available yet. Run the manual intelligence refresh and try again.</p>}
