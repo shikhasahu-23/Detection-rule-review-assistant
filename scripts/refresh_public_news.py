@@ -44,9 +44,9 @@ def tag_text(node: ET.Element, names: tuple[str, ...]) -> str:
 
 def classify(headline: str, summary: str) -> tuple[str, str]:
     text = f"{headline} {summary}".lower()
-    if any(word in text for word in ("actively exploited", "zero-day", "zero day", "ransomware")):
+    if "actively exploited" in text or "ransomware attack" in text:
         severity = "critical"
-    elif any(word in text for word in ("vulnerability", "breach", "data leak", "malware", "phishing", "botnet", "exploit", "hacked", "stolen", "unauthorized access", "compromise")):
+    elif any(word in text for word in ("zero-day", "zero day", "vulnerability", "breach", "data leak", "malware", "ransomware", "phishing", "botnet", "exploit", "hacked", "stolen", "unauthorized access", "compromise")):
         severity = "high"
     elif any(word in text for word in ("patch", "security update", "advisory", "cyberattack")):
         severity = "medium"
@@ -104,7 +104,9 @@ def enrich(headline: str, summary: str) -> dict:
         ("ransomware", "Ransomware"),
         ("remote code execution", "Remote code execution"),
         ("sql injection", "SQL injection"),
-        ("zero-day", "Zero-day exploitation"),
+        ("marketed as a zero-day", "Zero-day claim reported by source (verify)"),
+        ("claimed zero-day", "Claimed zero-day (verify)"),
+        ("zero-day", "Zero-day exploitation reported"),
         ("supply chain", "Software supply-chain compromise"),
         ("credential", "Credential theft / compromise"),
         ("malicious package", "Malicious software package"),
