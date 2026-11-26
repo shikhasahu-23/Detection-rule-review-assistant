@@ -85,7 +85,7 @@ jobs:
       - name: Verify built portfolio
         run: |
           test -s frontend/dist/index.html
-          test -s frontend/dist/assets/*
+          find frontend/dist/assets -type f -name "*.js" -print -quit | grep -q .
           if grep -R -q "detectionops-api.onrender.com" frontend/dist/assets; then
             echo "::error::Legacy Render API URL found in built frontend"
             exit 1
