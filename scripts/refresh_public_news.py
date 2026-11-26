@@ -74,12 +74,12 @@ def enrich(headline: str, summary: str) -> dict:
     """Extract story-specific facts and defensive checks from the available RSS text."""
     text = f"{headline}. {summary}"
     lower = text.lower()
-    cves = sorted(set(re.findall(r"CVE-\\d{4}-\\d{4,}", text, re.I)))
-    actor_pattern = r"\\b(?:APT\\s?\\d{1,3}|FIN\\d{1,3}|Lazarus Group|Sandworm|Volt Typhoon|Scattered Spider|Cl0p|LockBit|Akira|Rhysida|Qilin|BlackCat|North Korea)\\b"
+    cves = sorted(set(re.findall(r"CVE-\d{4}-\d{4,}", text, re.I)))
+    actor_pattern = r"\b(?:APT\s?\d{1,3}|FIN\d{1,3}|Lazarus Group|Sandworm|Volt Typhoon|Scattered Spider|Cl0p|LockBit|Akira|Rhysida|Qilin|BlackCat|North Korea)\b"
     actors = sorted(set(re.findall(actor_pattern, text, re.I)))
     malware_terms = ("Remus", "PolinRider", "SYS01", "SYS010", "LockBit", "Akira", "Qilin", "BlackCat")
-    named_tools = sorted({name for name in malware_terms if re.search(r"\\b" + re.escape(name) + r"\\b", text, re.I)})
-    malware_types = sorted(set(re.findall(r"\\b(?:ransomware|infostealer|trojan|backdoor|botnet|rootkit|spyware|loader)\\b", text, re.I)))
+    named_tools = sorted({name for name in malware_terms if re.search(r"\b" + re.escape(name) + r"\b", text, re.I)})
+    malware_types = sorted(set(re.findall(r"\b(?:ransomware|infostealer|trojan|backdoor|botnet|rootkit|spyware|loader)\b", text, re.I)))
     malware = named_tools + [term for term in malware_types if term.lower() not in {x.lower() for x in named_tools}]
 
     if any(x in lower for x in ("malware", "ransomware", "backdoor", "botnet", "infostealer", "malicious package", "loader", "malicious extension")):
