@@ -417,11 +417,50 @@ function App() {
   const loadOpportunities = useCallback(async () => {
     setLoadingOpportunities(true);
     try {
-      const response = await localApi(`/api/v1/intelligence/detection-opportunities?limit=100`);
-      if (!response.ok) throw new Error("Unable to load detection opportunities.");
-      setOpportunities(await response.json());
+      const [storedIntents, allIndicators] = await Promise.all([
+        readData("detection-intents.json"),
+        readAllIndicators(),
+      ]);
+      const localIntents = readBrowserDrafts<DetectionIntent>(LOCAL_INTENTS_KEY);
+      const intentMap = new Map<string, DetectionIntent>();
+      for (const intent of [...(Array.isArray(storedIntents) ? storedIntents : []), ...localIntents]) intentMap.set(intent.id, intent);
+      const indicatorById = new Map<string, Indicator>(allIndicators.map((item: Indicator) => [item.id, item]));
+      const indicatorByValue = new Map<string, Indicator>(allIndicators.map((item: Indicator) => [item.value.toUpperCase(), item]));
+      const results: Opportunity[] = [];
+      for (const intent of intentMap.values()) {
+        const evidence = Array.isArray((intent as any).evidence) ? (intent as any).evidence : [];
+        const refs = new Set<string>(evidence.map((item: any) => String(item.reference || "").toUpperCase()).filter(Boolean));
+        const evidenceIds = new Set<string>(evidence.map((item: any) => String(item.indicator_id || "")).filter(Boolean));
+        const matches = new Map<string, Indicator>();
+        for (const ref of refs) {
+          const indicator = indicatorByValue.get(ref);
+          if (indicator) matches.set(indicator.id, indicator);
+        }
+        for (const id of evidenceIds) {
+          const indicator = indicatorById.get(id);
+          if (indicator) matches.set(indicator.id, indicator);
+        }
+        const matchedTechniques = [...new Set((intent.attack_techniques || []).map((id: string) => id.toUpperCase()).filter((id: string) => /^T\\d{4}(?:\\.\\d{3})?$/.test(id)))];
+        const indicatorsForIntent = [...matches.values()];
+        if (!indicatorsForIntent.length && !matchedTechniques.length) continue;
+        const matchedCves = [...new Set(indicatorsForIntent.filter(item => item.indicator_type.toLowerCase() === "cve" || /^CVE-\\d{4}-\\d+$/i.test(item.value)).map(item => item.value))];
+        const evidenceCount = evidence.length || indicatorsForIntent.reduce((sum, item) => sum + (Array.isArray((item as any).sources) ? (item as any).sources.length : 0), 0);
+        results.push({
+          intent_id: intent.id, title: intent.title, severity: intent.severity || "unknown", status: intent.status || "active",
+          target_platforms: intent.target_platforms || [], association_type: "explicit_reference",
+          indicators: indicatorsForIntent.slice(0, 100).map(item => ({
+            indicator_id: item.id, indicator_type: item.indicator_type, value: item.value, confidence: item.confidence,
+            severity: item.severity, freshness: item.created_at, evidence_count: Array.isArray((item as any).sources) ? (item as any).sources.length : 0,
+          })),
+          matched_techniques: matchedTechniques, matched_cves: matchedCves, indicator_count: indicatorsForIntent.length,
+          evidence_count: evidenceCount,
+          rationale: "Matched only by explicit CVE references or indicator IDs stored with this detection intent. ATT&CK techniques are shown only when explicitly assigned; no attribution is inferred.",
+        });
+      }
+      results.sort((a, b) => b.indicator_count - a.indicator_count || b.evidence_count - a.evidence_count);
+      setOpportunities(results);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to load detection opportunities.");
+      setError(e instanceof Error ? e.message : "Unable to build evidence-backed detection opportunities from the static snapshot.");
     } finally {
       setLoadingOpportunities(false);
     }
@@ -465,14 +504,13 @@ function App() {
   const loadCyberNews = useCallback(async () => {
     setLoadingNews(true);
     try {
-      const response = await localApi(`/api/v1/intelligence/cyber-news?limit=100`);
-      if (!response.ok) throw new Error("Unable to load cyber news.");
-      const body = await response.json();
-      setCyberNews(body.items || []);
+      const body = await readData("cyber-news.json");
+      setCyberNews(Array.isArray(body.items) ? body.items : []);
       setNewsFetchedAt(body.fetched_at || "");
       setNewsErrors(body.sources_failed || []);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to load cyber news.");
+      setCyberNews([]);
+      setError(e instanceof Error ? e.message : "Unable to load the published cyber-news snapshot.");
     } finally {
       setLoadingNews(false);
     }
@@ -666,7 +704,7 @@ function App() {
       {page === "Cyber news" ? <>
         <section className="banner"><Newspaper/><div><b>Cybersecurity headlines from trusted public sources</b><p>Short summaries, practical impact and severity labels to help you scan what matters.</p></div><span>NOT INCLUDED</span></section>
         <section className="panel intel-panel">
-          <div className="panelhead"><div><b>Latest cyber news</b><p>{newsFetchedAt ? `Fetched ${new Date(newsFetchedAt).toLocaleString()}` : "Cyber-news ingestion is not included in this static release."}</p></div><button disabled title="Cyber-news ingestion requires a backend"><RefreshCw size={15} className={loadingNews?"spin":""}/> Refresh news</button></div>
+          <div className="panelhead"><div><b>Latest cyber news</b><p>{newsFetchedAt ? `Fetched ${new Date(newsFetchedAt).toLocaleString()}` : "Latest published RSS snapshot · refreshed daily by GitHub Actions."}</p></div><a className="workflow-run-button" href="https://github.com/shikhasahu-23/ThreatWeave/actions/workflows/refresh-static-intelligence.yml" target="_blank" rel="noreferrer"><RefreshCw size={15}/>Refresh news<ArrowUpRight size={14}/></a></div>
           <div className="library-filters">
             <select value={newsWindow} onChange={e=>setNewsWindow(e.target.value)}><option value="24h">Last 24 hours</option><option value="7d">Last 7 days</option><option value="all">All fetched</option></select>
             <select value={newsSeverity} onChange={e=>setNewsSeverity(e.target.value)}><option value="">All severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
@@ -685,7 +723,7 @@ function App() {
               <div className="news-details"><div><label>WHAT HAPPENED</label><p>{item.summary}</p></div><div><label>IMPACT</label><p>{item.impact}</p></div></div>
               <div className="news-source"><span>SOURCE</span><a href={item.url} target="_blank" rel="noreferrer">{item.source} ↗</a></div>
             </article>)}
-            {!loadingNews&&cyberNews.length===0&&<p className="no-data">No news could be loaded. Check backend connectivity and try refreshing.</p>}
+            {!loadingNews&&cyberNews.length===0&&<p className="no-data">No published stories are available yet. Run the manual intelligence refresh and try again.</p>}
             {!loadingNews&&cyberNews.length>0&&cyberNews.filter(item=>{const age=Date.now()-new Date(item.published_at).getTime();const inWindow=newsWindow==="24h"?age<=86400000:newsWindow==="7d"?age<=7*86400000:true;return inWindow&&(!newsSeverity||item.severity===newsSeverity)&&(!newsSource||item.source===newsSource);}).length===0&&<p className="no-data">No stories match these filters.</p>}
           </div>
         </section>
