@@ -559,13 +559,28 @@ function App() {
           {feeds.length ? feeds.map(feed => <div className="feed-row" key={feed.name}><div><b>{feed.name}</b><small>{feed.last_run ? new Date(feed.last_run).toLocaleString() : "No run time"}</small></div><span className={feed.status === "succeeded" ? "feed-ok" : "feed-fail"}>{feed.status}</span><small>{feed.records_seen.toLocaleString()} records · {feed.indicators_created.toLocaleString()} new</small></div>) : <p className="muted">No feed runs recorded. Start with the CISA KEV sync.</p>}
         </section>
       </> : page === "ATT&CK catalog" ? <>
-        <section className="banner"><ShieldCheck/><div><b>MITRE ATT&CK Enterprise</b><p>Technique and sub-technique reference catalog with tactic and platform metadata. Deprecated and revoked entries remain visible for historical references.</p></div><span>{attackTechniques.length} TECHNIQUES</span></section>
-        <section className="panel intel-panel"><div className="panelhead"><div><b>Technique catalog</b><p>Search by technique ID, name, platform or tactic.</p></div><span>{attackTechniques.length} loaded</span></div>
-          <div className="searchbar"><Search size={16}/><input value={attackSearch} onChange={e=>setAttackSearch(e.target.value)} placeholder="Search T1059, PowerShell, Execution…"/></div>
-          <div className="table-wrap"><table><thead><tr><th>TECHNIQUE</th><th>TACTICS</th><th>PLATFORMS</th><th>TYPE</th><th>STATUS</th></tr></thead><tbody>
-            {attackTechniques.filter(item=>[item.external_id,item.name,item.description,...item.tactics,...item.platforms].join(" ").toLowerCase().includes(attackSearch.toLowerCase())).map(item=><tr key={item.id}><td><b>{item.external_id} · {item.name}</b><small>{item.description}</small></td><td>{item.tactics.join(", ") || "—"}</td><td>{item.platforms.join(", ") || "—"}</td><td>{item.is_subtechnique?"Sub-technique":"Technique"}</td><td><span className="status-pill">{item.revoked?"Revoked":item.deprecated?"Deprecated":"Active"}</span></td></tr>)}
-            {attackTechniques.length===0 && <tr><td colSpan={5} className="no-data">No ATT&CK techniques loaded. Select Sync ATT&CK to import the official catalog.</td></tr>}
-          </tbody></table></div>
+        <section className="banner catalog-banner"><ShieldCheck/><div><b>MITRE ATT&CK Enterprise · your detection coverage map</b><p>Use this catalogue to understand attacker behaviours, map them to tactics, and identify which techniques your detections should cover.</p></div><span>{attackTechniques.length} TECHNIQUES</span></section>
+        <section className="catalog-guide">
+          <article><b>Why use this catalogue?</b><p>Translate threat activity into a shared language for threat hunting, detection engineering and coverage discussions.</p></article>
+          <article><b>Tactic = attacker goal</b><p>The objective an adversary is trying to achieve, such as Initial Access, Execution or Exfiltration.</p></article>
+          <article><b>Technique = how they do it</b><p>The behaviour or method used to achieve that goal. Use IDs to map detections consistently.</p></article>
+        </section>
+        <section className="panel intel-panel">
+          <div className="panelhead"><div><b>Find a technique</b><p>Filter first, then scan concise technique summaries and platform coverage.</p></div><span>{visibleAttackTechniques.length} of {attackTechniques.length}</span></div>
+          <div className="catalog-filters">
+            <select value={attackTacticFilter} onChange={e=>{setAttackTacticFilter(e.target.value);setAttackTechniqueFilter("");}}><option value="">All tactics</option>{[...new Set(attackTechniques.flatMap(x=>x.tactics))].sort().map(t=><option key={t} value={t}>{t.replaceAll("_"," ")}</option>)}</select>
+            <select value={attackTechniqueFilter} onChange={e=>setAttackTechniqueFilter(e.target.value)}><option value="">All techniques</option>{attackTechniques.filter(x=>!attackTacticFilter||x.tactics.includes(attackTacticFilter)).sort((a,b)=>a.external_id.localeCompare(b.external_id)).map(t=><option key={t.id} value={t.external_id}>{t.external_id} · {t.name}</option>)}</select>
+            <div className="searchbar"><Search size={16}/><input value={attackSearch} onChange={e=>setAttackSearch(e.target.value)} placeholder="Search ID, technique or platform…"/></div>
+            <button onClick={()=>{setAttackSearch("");setAttackTacticFilter("");setAttackTechniqueFilter("");}}>Clear filters</button>
+          </div>
+          <div className="technique-grid">{visibleAttackTechniques.map(item=><article className="technique-card" key={item.id}>
+            <div className="technique-top"><b>{item.external_id}</b><span>{item.is_subtechnique?"SUB-TECHNIQUE":"TECHNIQUE"}</span></div>
+            <h3>{item.name}</h3><p className="technique-summary">{item.description}</p>
+            <div className="technique-tags">{item.tactics.map(t=><span className="tactic-tag" key={t}>{t.replaceAll("_"," ")}</span>)}</div>
+            <div className="technique-platforms">{item.platforms.slice(0,4).map(p=><span key={p}>{p}</span>)}{item.platforms.length>4&&<span>+{item.platforms.length-4}</span>}</div>
+            <div className="technique-footer"><span className={item.revoked?"tech-status revoked":item.deprecated?"tech-status deprecated":"tech-status active"}>{item.revoked?"Revoked":item.deprecated?"Deprecated":"Active"}</span><a href={item.source_url} target="_blank" rel="noreferrer">MITRE details ↗</a></div>
+          </article>)}</div>
+          {visibleAttackTechniques.length===0&&<p className="no-data">No techniques match these filters.</p>}
         </section>
       </> : page === "Threat graph" ? <>
         <section className="banner graph-banner"><Network/><div><b>Threat landscape at a glance</b><p>Explore source-backed entities and reported relationships. Explore source-backed entities, adversary behaviour and reported relationships with traceable evidence.</p></div><span>STIX 2.1</span></section>
