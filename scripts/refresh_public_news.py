@@ -106,7 +106,6 @@ def enrich(headline: str, summary: str) -> dict:
         ("sql injection", "SQL injection"),
         ("marketed as a zero-day", "Zero-day claim reported by source (verify)"),
         ("claimed zero-day", "Claimed zero-day (verify)"),
-        ("zero-day", "Zero-day exploitation reported"),
         ("supply chain", "Software supply-chain compromise"),
         ("credential", "Credential theft / compromise"),
         ("malicious package", "Malicious software package"),
@@ -114,6 +113,9 @@ def enrich(headline: str, summary: str) -> dict:
     ):
         if term in lower and label not in vectors:
             vectors.append(label)
+
+    if "zero-day" in lower and not any(claim in lower for claim in ("marketed as a zero-day", "claimed zero-day", "alleged zero-day")):
+        vectors.append("Zero-day exploitation reported")
 
     surfaces = []
     for term, label in (
