@@ -69,9 +69,9 @@ def enrich(headline: str, summary: str) -> dict:
     """Extract cautious, source-text-backed context; never invent attribution."""
     text = f"{headline}. {summary}"
     lower = text.lower()
-    cves = sorted(set(re.findall(r"CVE-\\d{4}-\\d{4,}", text, re.I)))
-    actors = sorted(set(re.findall(r"\\b(?:APT\\s?\\d{1,3}|FIN\\d{1,3}|Lazarus Group|Sandworm|Volt Typhoon|Scattered Spider|Cl0p|LockBit|Akira|Rhysida|Qilin|BlackCat)\\b", text, re.I)))
-    malware = sorted(set(re.findall(r"\\b(?:ransomware|infostealer|trojan|backdoor|botnet|rootkit|spyware|loader)\\b", text, re.I)))
+    cves = sorted(set(re.findall(r"CVE-\d{4}-\d{4,}", text, re.I)))
+    actors = sorted(set(re.findall(r"\b(?:APT\s?\d{1,3}|FIN\d{1,3}|Lazarus Group|Sandworm|Volt Typhoon|Scattered Spider|Cl0p|LockBit|Akira|Rhysida|Qilin|BlackCat)\b", text, re.I)))
+    malware = sorted(set(re.findall(r"\b(?:ransomware|infostealer|trojan|backdoor|botnet|rootkit|spyware|loader)\b", text, re.I)))
     event = "Malware / intrusion" if any(x in lower for x in ("malware", "ransomware", "backdoor", "botnet", "infostealer", "malicious package", "loader")) else "Data breach / exposure" if any(x in lower for x in ("breach", "data leak", "stolen", "exposed", "unauthorized access")) else "Vulnerability / exploitation" if any(x in lower for x in ("cve-", "vulnerability", "zero-day", "zero day", "exploit")) else "Security advisory / research"
     vector = []
     for term, label in (("phishing", "Phishing"), ("ransomware", "Ransomware"), ("remote code execution", "Remote code execution"), ("sql injection", "SQL injection"), ("zero-day", "Zero-day exploitation"), ("supply chain", "Software supply chain"), ("credential", "Credential compromise"), ("malicious package", "Malicious software package"), ("path traversal", "Path traversal")):
