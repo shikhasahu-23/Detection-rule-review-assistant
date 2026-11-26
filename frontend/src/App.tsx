@@ -12,13 +12,34 @@ const readData = async (name: string) => {
   if (!response.ok) throw new Error(`Unable to load ${name}`);
   return response.json();
 };
+const readAllIndicators = async () => {
+  const [live, ...history] = await Promise.all([
+    readData("indicators.json"),
+    ...Array.from({ length: 11 }, (_, index) => readData(`indicators-history-${String(index + 1).padStart(2, "0")}.json`)),
+  ]);
+  const merged = new Map<string, any>();
+  for (const item of [...history.flat(), ...live]) {
+    const previous = merged.get(item.value);
+    merged.set(item.value, {
+      ...previous,
+      ...item,
+      sources: [...new Set([...(previous?.sources || []), ...(item.sources || [])].map((source: any) => typeof source === "string" ? source : source.name).filter(Boolean))],
+      cvss_score: item.cvss_score ?? previous?.cvss_score ?? null,
+    });
+  }
+  return [...merged.values()].map(item => ({
+    ...item,
+    created_at: item.created_at || item.last_seen || item.date_added || new Date().toISOString(),
+    cvss_score: item.cvss_score ?? null,
+  }));
+};
 const localApi = async (path: string, init?: RequestInit): Promise<Response> => {
   if (init?.method && init.method.toUpperCase() !== "GET") {
     return new Response(JSON.stringify({ detail: "ThreatWeave Portfolio is a static, read-only deployment. Data refreshes run through GitHub Actions; browser-side writes are not enabled." }), { status: 501, headers: { "Content-Type": "application/json" } });
   }
   let data: any = [];
-  if (path.includes("/intelligence/summary")) data = await readData("summary.json");
-  else if (path.includes("/intelligence/indicators")) data = (await readData("indicators.json")).map((item: any) => ({ ...item, sources: (item.sources || []).map((source: any) => typeof source === "string" ? source : source.name), created_at: item.created_at || item.last_seen || item.date_added || new Date().toISOString(), cvss_score: item.cvss_score ?? null }));
+  if (path.includes("/intelligence/summary")) { const summary = await readData("summary.json"); const all = await readAllIndicators(); data = { ...summary, indicators_total: all.length, active_indicators: all.filter((item: any) => item.status === "active").length, sources_total: new Set(all.flatMap((item: any) => item.sources || [])).size }; }
+  else if (path.includes("/intelligence/indicators")) data = await readAllIndicators();
   else if (path.includes("/intelligence/feeds")) data = await readData("feeds.json");
   else if (path.includes("/intelligence/attack-techniques")) data = await readData("attack-techniques.json");
   else if (path.includes("/detection-intents") && !path.includes("/candidates")) data = await readData("detection-intents.json");
