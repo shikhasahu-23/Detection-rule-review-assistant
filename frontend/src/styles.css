@@ -270,3 +270,27 @@
 .news-source{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .news-source small{font-size:11px;color:var(--muted,#94a3b8);margin-left:auto}
 @media(max-width:640px){.news-facts{grid-template-columns:1fr}.news-analysis{padding:12px}.news-source small{margin-left:0}}
+
+
+/* Expandable incident investigation drill-down */
+.news-investigation{margin-top:13px;border:1px solid var(--border,rgba(148,163,184,.22));border-radius:12px;background:rgba(16,185,129,.035);overflow:hidden}
+.news-investigation>summary{list-style:none;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:14px}
+.news-investigation>summary::-webkit-details-marker{display:none}
+.news-investigation>summary>span:first-child{display:flex;flex-direction:column;gap:4px}
+.news-investigation>summary b{font-size:13px}
+.news-investigation>summary small{font-size:11px;color:var(--muted,#94a3b8)}
+.investigation-open{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;font-size:11px;font-weight:750;color:var(--accent,#60a5fa)}
+.news-investigation[open]>summary{border-bottom:1px solid var(--border,rgba(148,163,184,.2))}
+.news-investigation[open] .investigation-open:before{content:"Close";font-size:11px}
+.investigation-body{padding:14px}
+.investigation-story{padding:13px;border-radius:9px;background:rgba(59,130,246,.06);margin-bottom:12px}
+.investigation-body label{display:block;font-size:10px;letter-spacing:.08em;font-weight:850;color:var(--muted,#94a3b8);margin-bottom:7px}
+.investigation-story p,.investigation-grid p{font-size:12px;line-height:1.6;margin:5px 0}
+.investigation-story small{font-size:10px;color:var(--muted,#94a3b8)}
+.investigation-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.investigation-grid>section{padding:12px;border:1px solid var(--border,rgba(148,163,184,.18));border-radius:9px;min-width:0}
+.investigation-grid ul{margin:5px 0;padding-left:18px}
+.investigation-grid li{font-size:12px;line-height:1.55;margin:4px 0}
+.investigation-caveat{font-size:10px!important;color:var(--muted,#94a3b8)}
+.investigation-source-link{display:inline-flex;align-items:center;gap:5px;margin-top:12px;font-size:12px;font-weight:750}
+@media(max-width:640px){.news-investigation>summary{align-items:flex-start;flex-direction:column}.investigation-grid{grid-template-columns:1fr}.investigation-body{padding:10px}}
