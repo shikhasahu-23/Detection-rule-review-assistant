@@ -12,7 +12,7 @@ from app.schemas.rule import RuleCandidateCreate, RuleCandidateOut
 from app.services.validation import validate_candidate
 
 router = APIRouter(prefix="/api/v1/detection-intents", tags=["rule candidates"])
-DbSession = Annotated[Session, Depends(get_db)]
+DbSession = Annotated[Session, Depends(get_db, scope="function")]
 
 
 @router.post("/{intent_id}/candidates", response_model=RuleCandidateOut, status_code=status.HTTP_201_CREATED)
