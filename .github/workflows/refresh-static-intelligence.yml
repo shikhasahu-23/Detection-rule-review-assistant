@@ -1,0 +1,56 @@
+name: Refresh public threat intelligence
+
+on:
+  schedule:
+    - cron: "30 2 * * *" # 08:00 Asia/Kolkata
+  workflow_dispatch:
+  push:
+    branches: [migration/github-only]
+    paths:
+      - "scripts/refresh_static_intelligence.py"
+      - ".github/workflows/refresh-static-intelligence.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: static-intelligence-refresh
+  cancel-in-progress: false
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Refresh authoritative public sources
+        run: python scripts/refresh_static_intelligence.py
+      - name: Validate refreshed datasets
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("frontend/public/data")
+          for name in ("summary.json", "indicators.json", "feeds.json", "attack-techniques.json"):
+              value = json.loads((root / name).read_text())
+              assert value is not None, name
+          assert json.loads((root / "indicators.json").read_text())
+          assert json.loads((root / "attack-techniques.json").read_text())
+          print("Static intelligence JSON validated")
+          PY
+      - name: Commit refreshed public data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add frontend/public/data/summary.json frontend/public/data/indicators.json frontend/public/data/feeds.json frontend/public/data/attack-techniques.json
+          if git diff --cached --quiet; then
+            echo "No public intelligence changes."
+          else
+            git commit -m "chore(intel): refresh CISA KEV and MITRE ATT&CK datasets"
+            git push
+          fi

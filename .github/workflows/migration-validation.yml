@@ -1,0 +1,62 @@
+name: Validate GitHub-only migration
+
+on:
+  push:
+    branches: [migration/github-only]
+    paths:
+      - "frontend/**"
+      - "scripts/**"
+      - ".github/workflows/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Validate JSON snapshots and rule inventory
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("frontend/public/data")
+          required = ["summary.json", "indicators.json", "feeds.json", "attack-techniques.json", "detection-intents.json", "threat-graph.json", "pipeline-runs.json"]
+          for name in required:
+              path = root / name
+              assert path.is_file() and path.stat().st_size > 0, f"Missing or empty: {name}"
+              json.loads(path.read_text())
+          rules = []
+          for n in range(1, 7):
+              batch = json.loads((root / f"rules-{n}.json").read_text())
+              assert isinstance(batch, list)
+              rules.extend(batch)
+          assert len(rules) == 344, f"Rule count mismatch: {len(rules)}"
+          historical = []
+          for n in range(1, 12):
+              rows = json.loads((root / f"indicators-history-{n:02d}.json").read_text())
+              historical.extend(rows)
+          assert len(historical) == 5225, f"Indicator archive count mismatch: {len(historical)}"
+          assert len(json.loads((root / "attack-techniques.json").read_text())) >= 600
+          print(f"PASS: {len(rules)} rules, {len(json.loads((root / 'attack-techniques.json').read_text()))} ATT&CK techniques")
+          PY
+      - name: Validate refresh script syntax
+        run: python -m py_compile scripts/refresh_static_intelligence.py
+      - name: Build frontend
+        working-directory: frontend
+        run: |
+          npm install
+          VITE_BASE_PATH=/ThreatWeave/ npm run build
+      - name: Check built app has no Render API dependency
+        run: |
+          if grep -R -q "detectionops-api.onrender.com" frontend/dist/assets; then
+            echo "::error::Render API URL is still present in the built app"
+            exit 1
+          fi
+          test -s frontend/dist/index.html
+          echo "PASS: built frontend is static-only"

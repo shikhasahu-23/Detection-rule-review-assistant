@@ -5,7 +5,63 @@ import {
   ShieldEllipsis, Sparkles, Search, Newspaper
 } from "lucide-react";
 
-const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+const DATA_ROOT = `${import.meta.env.BASE_URL}data/`;
+const readData = async (name: string) => {
+  const response = await fetch(DATA_ROOT + name);
+  if (!response.ok) throw new Error(`Unable to load ${name}`);
+  return response.json();
+};
+const readAllIndicators = async () => {
+  const [live, ...history] = await Promise.all([
+    readData("indicators.json"),
+    ...Array.from({ length: 11 }, (_, index) => readData(`indicators-history-${String(index + 1).padStart(2, "0")}.json`)),
+  ]);
+  const merged = new Map<string, any>();
+  for (const item of [...history.flat(), ...live]) {
+    const previous = merged.get(item.value);
+    merged.set(item.value, {
+      ...previous,
+      ...item,
+      sources: [...new Set([...(previous?.sources || []), ...(item.sources || [])].map((source: any) => typeof source === "string" ? source : source.name).filter(Boolean))],
+      cvss_score: item.cvss_score ?? previous?.cvss_score ?? null,
+    });
+  }
+  return [...merged.values()].map(item => ({
+    ...item,
+    created_at: item.created_at || item.last_seen || item.date_added || new Date().toISOString(),
+    cvss_score: item.cvss_score ?? null,
+  }));
+};
+const localApi = async (path: string, init?: RequestInit): Promise<Response> => {
+  if (init?.method && init.method.toUpperCase() !== "GET") {
+    return new Response(JSON.stringify({ detail: "ThreatWeave Portfolio is a static, read-only deployment. Data refreshes run through GitHub Actions; browser-side writes are not enabled." }), { status: 501, headers: { "Content-Type": "application/json" } });
+  }
+  let data: any = [];
+  if (path.includes("/intelligence/summary")) { const summary = await readData("summary.json"); const all = await readAllIndicators(); data = { ...summary, indicators_total: all.length, active_indicators: all.filter((item: any) => item.status === "active").length, sources_total: new Set(all.flatMap((item: any) => item.sources || [])).size }; }
+  else if (path.includes("/intelligence/indicators")) data = await readAllIndicators();
+  else if (path.includes("/intelligence/feeds")) data = await readData("feeds.json");
+  else if (path.includes("/intelligence/attack-techniques")) data = await readData("attack-techniques.json");
+  else if (path.includes("/detection-intents") && !path.includes("/candidates")) data = await readData("detection-intents.json");
+  else if (path.includes("/intelligence/pipeline/runs")) data = await readData("pipeline-runs.json");
+  else if (path.includes("/intelligence/threat-graph")) {
+    const graph = await readData("threat-graph.json");
+    data = { nodes: graph.nodes || [], edges: (graph.edges || []).map((edge: any) => ({ ...edge, source: edge.source_entity_id, target: edge.target_entity_id })), truncated: false };
+  } else if (path.includes("/intelligence/detection-opportunities")) data = [];
+  else if (path.includes("/intelligence/cyber-news")) data = [];
+  else if (path.includes("/detection-effectiveness")) data = null;
+  else if (path.includes("/rules/") && path.includes("/test-runs")) data = [];
+  else if (path.includes("/detection-intents/") && path.includes("/candidates")) {
+    const id = path.split("/detection-intents/")[1]?.split("/")[0];
+    const batches = await Promise.all(Array.from({ length: 6 }, (_, index) => readData(`rules-${index + 1}.json`)));
+    data = batches.flat().filter((item: RuleCandidate) => item.intent_id === id);
+  } else if (path.includes("/rules")) {
+    const batches = await Promise.all(Array.from({ length: 6 }, (_, index) => readData(`rules-${index + 1}.json`)));
+    data = batches.flat();
+  }
+  return new Response(JSON.stringify(data), { status: 200, headers: { "Content-Type": "application/json" } });
+};
+
 type Summary = { indicators_total: number; active_indicators: number; sources_total: number; latest_run: { source: string; status: string; started_at: string; records_seen: number; indicators_created: number } | null };
 type Indicator = { id: string; indicator_type: string; value: string; confidence: number; severity: string; status: string; description: string | null; tags: string[]; sources: string[]; cvss_score: number | null; created_at: string };
 type Feed = { name: string; status: string; last_run: string; records_seen: number; indicators_created: number };
@@ -99,9 +155,9 @@ function App() {
     setError("");
     try {
       const [s, i, f] = await Promise.all([
-        fetch(`${API}/api/v1/intelligence/summary`),
-        fetch(`${API}/api/v1/intelligence/indicators?limit=500`),
-        fetch(`${API}/api/v1/intelligence/feeds`),
+        localApi(`/api/v1/intelligence/summary`),
+        localApi(`/api/v1/intelligence/indicators?limit=500`),
+        localApi(`/api/v1/intelligence/feeds`),
       ]);
       if (![s, i, f].every((r) => r.ok)) throw new Error("The API is unavailable. Start the backend and database, then retry.");
       setSummary(await s.json());
@@ -119,7 +175,7 @@ function App() {
   const syncCisa = async () => {
     setSyncing(true); setError(""); setNotice("");
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/feeds/cisa-kev/sync`, { method: "POST" });
+      const response = await localApi(`/api/v1/intelligence/feeds/cisa-kev/sync`, { method: "POST" });
       const body = await response.json();
       if (!response.ok) throw new Error(body.detail || "CISA feed sync failed.");
       setNotice(`CISA KEV sync complete — ${body.records_seen.toLocaleString()} records checked, ${body.indicators_created.toLocaleString()} new indicators added.`);
@@ -134,7 +190,7 @@ function App() {
   const importCsv = async (file: File) => {
     setUploadingCsv(true); setError(""); setNotice("");
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/feeds/custom/csv`, {
+      const response = await localApi(`/api/v1/intelligence/feeds/custom/csv`, {
         method: "POST", headers: { "Content-Type": "text/csv" }, body: file,
       });
       const body = await response.json();
@@ -148,7 +204,7 @@ function App() {
 
   const loadAttackCatalog = useCallback(async () => {
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/attack-techniques?limit=500`);
+      const response = await localApi(`/api/v1/intelligence/attack-techniques?limit=500`);
       if (!response.ok) throw new Error("Unable to load ATT&CK catalog.");
       setAttackTechniques(await response.json());
     } catch (e) {
@@ -163,7 +219,7 @@ function App() {
   const syncAttack = async () => {
     setSyncingAttack(true); setError(""); setNotice("");
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/feeds/mitre-attack/sync`, { method: "POST" });
+      const response = await localApi(`/api/v1/intelligence/feeds/mitre-attack/sync`, { method: "POST" });
       const body = await response.json();
       if (!response.ok) throw new Error(body.detail || "ATT&CK catalog sync failed.");
       setNotice(`ATT&CK sync complete — ${body.techniques_created} new and ${body.techniques_updated} updated techniques.`);
@@ -175,12 +231,12 @@ function App() {
 
   const loadDetectionData = useCallback(async () => {
     try {
-      const response = await fetch(`${API}/api/v1/detection-intents?limit=100`);
+      const response = await localApi(`/api/v1/detection-intents?limit=100`);
       if (!response.ok) throw new Error("Unable to load detection intents.");
       const items: DetectionIntent[] = await response.json();
       setIntents(items);
       if (page === "Rule library") {
-        const rulesResponse = await fetch(`${API}/api/v1/rules?limit=100&offset=${libraryOffset}`);
+        const rulesResponse = await localApi(`/api/v1/rules?limit=100&offset=${libraryOffset}`);
         if (!rulesResponse.ok) throw new Error("Unable to load the rule library.");
         setCandidates(await rulesResponse.json());
         return;
@@ -188,12 +244,12 @@ function App() {
       const currentId = selectedIntentId || items[0]?.id || "";
       if (!selectedIntentId && currentId) setSelectedIntentId(currentId);
       if (currentId) {
-        const rulesResponse = await fetch(`${API}/api/v1/detection-intents/${currentId}/candidates`);
+        const rulesResponse = await localApi(`/api/v1/detection-intents/${currentId}/candidates`);
         if (!rulesResponse.ok) throw new Error("Unable to load rule candidates.");
         const loadedCandidates: RuleCandidate[] = await rulesResponse.json();
         setCandidates(loadedCandidates);
         const history = await Promise.all(loadedCandidates.slice(0, 20).map(async candidate => {
-          const response = await fetch(`${API}/api/v1/rules/${candidate.id}/test-runs`);
+          const response = await localApi(`/api/v1/rules/${candidate.id}/test-runs`);
           if (!response.ok) return null;
           const runs: TestRun[] = await response.json();
           return runs.length ? [candidate.id, runs[0]] as const : null;
@@ -215,7 +271,7 @@ function App() {
   const createIntent = async () => {
     setCreatingIntent(true); setError(""); setNotice("");
     try {
-      const response = await fetch(`${API}/api/v1/detection-intents`, {
+      const response = await localApi(`/api/v1/detection-intents`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: intentTitle, description: intentDescription, behavior: intentBehavior,
@@ -240,7 +296,7 @@ function App() {
     if (!selectedIntentId) return;
     setGenerating(true); setError(""); setNotice("");
     try {
-      const response = await fetch(`${API}/api/v1/detection-intents/${selectedIntentId}/generate`, {
+      const response = await localApi(`/api/v1/detection-intents/${selectedIntentId}/generate`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ target_platforms: targetPlatforms }),
       });
@@ -259,7 +315,7 @@ function App() {
       if (libraryQuery.trim()) params.set("q", libraryQuery.trim());
       if (libraryPlatform) params.set("platform", libraryPlatform);
       if (libraryValidation) params.set("validation_status", libraryValidation);
-      const response = await fetch(`${API}/api/v1/rules?${params.toString()}`);
+      const response = await localApi(`/api/v1/rules?${params.toString()}`);
       if (!response.ok) throw new Error("Unable to load the rule library.");
       setCandidates(await response.json());
     } catch (e) {
@@ -281,7 +337,7 @@ function App() {
     setError(""); setNotice("");
     try {
       const suite = JSON.parse(testSuiteJson);
-      const response = await fetch(`${API}/api/v1/rules/${candidateId}/test-runs`, {
+      const response = await localApi(`/api/v1/rules/${candidateId}/test-runs`, {
         method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(suite),
       });
       const body = await response.json();
@@ -297,7 +353,7 @@ function App() {
   const loadOpportunities = useCallback(async () => {
     setLoadingOpportunities(true);
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/detection-opportunities?limit=100`);
+      const response = await localApi(`/api/v1/intelligence/detection-opportunities?limit=100`);
       if (!response.ok) throw new Error("Unable to load detection opportunities.");
       setOpportunities(await response.json());
     } catch (e) {
@@ -314,7 +370,7 @@ function App() {
   const loadEffectiveness = useCallback(async () => {
     setLoadingEffectiveness(true);
     try {
-      const response = await fetch(`${API}/api/v1/detection-effectiveness`);
+      const response = await localApi(`/api/v1/detection-effectiveness`);
       if (!response.ok) throw new Error("Unable to load detection effectiveness metrics.");
       setEffectiveness(await response.json());
     } catch (e) {
@@ -330,7 +386,7 @@ function App() {
 
   const loadPipelineRuns = useCallback(async () => {
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/pipeline/runs?limit=10`);
+      const response = await localApi(`/api/v1/intelligence/pipeline/runs?limit=10`);
       if (!response.ok) throw new Error("Unable to load pipeline history.");
       setPipelineRuns(await response.json());
     } catch (e) {
@@ -345,7 +401,7 @@ function App() {
   const loadCyberNews = useCallback(async () => {
     setLoadingNews(true);
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/cyber-news?limit=100`);
+      const response = await localApi(`/api/v1/intelligence/cyber-news?limit=100`);
       if (!response.ok) throw new Error("Unable to load cyber news.");
       const body = await response.json();
       setCyberNews(body.items || []);
@@ -365,7 +421,7 @@ function App() {
   const startPipeline = async () => {
     setPipelineQueued(true); setError(""); setNotice("");
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/pipeline/runs`, { method: "POST" });
+      const response = await localApi(`/api/v1/intelligence/pipeline/runs`, { method: "POST" });
       const body = await response.json();
       if (!response.ok) throw new Error(body.detail || "Unable to queue intelligence pipeline.");
        setNotice("Full intelligence pipeline started in the API background. Refresh run history to follow progress.");
@@ -380,7 +436,7 @@ function App() {
   const loadThreatGraph = useCallback(async () => {
     setLoadingThreatGraph(true);
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/threat-graph?limit=500`);
+      const response = await localApi(`/api/v1/intelligence/threat-graph?limit=500`);
       if (!response.ok) throw new Error("Unable to load threat graph.");
       setThreatGraph(await response.json());
     } catch (e) {
@@ -399,7 +455,7 @@ function App() {
     setStixImporting(true); setError(""); setNotice("");
     try {
       const bundle = JSON.parse(await file.text());
-      const response = await fetch(`${API}/api/v1/intelligence/feeds/custom/stix`, {
+      const response = await localApi(`/api/v1/intelligence/feeds/custom/stix`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ source_name: file.name.slice(0, 100), bundle }),
       });
@@ -418,7 +474,7 @@ function App() {
   const syncNvd = async () => {
     setSyncingNvd(true); setError(""); setNotice("");
     try {
-      const response = await fetch(`${API}/api/v1/intelligence/feeds/nvd/sync`, { method: "POST" });
+      const response = await localApi(`/api/v1/intelligence/feeds/nvd/sync`, { method: "POST" });
       const body = await response.json();
       if (!response.ok) throw new Error(body.detail || "NVD sync failed.");
       setNotice(`NVD sync complete — ${body.records_seen.toLocaleString()} records checked, ${body.indicators_created.toLocaleString()} new indicators added.${body.complete_window ? "" : " The result window was larger than one page; another sync is needed to complete it."}`);
@@ -532,16 +588,16 @@ function App() {
       <label>WORKSPACE</label>
       <div className="workspace"><span>S</span><div><b>Security Engineering</b><small>Team workspace</small></div><ChevronRight size={15}/></div>
       <nav>{nav.map(({ label, icon: Icon }) => <button key={label} className={page === label ? "nav active" : "nav"} onClick={() => setPage(label)}><Icon size={17}/>{label}</button>)}</nav>
-      <div className="sidebottom"><span className="live-dot"/> Platform initialized<hr/><div className="user"><b>SE</b><div>Team member<small>Workspace access</small></div></div></div>
+      <div className="sidebottom"><span className="live-dot"/> Static snapshot<hr/><div className="user"><b>SE</b><div>Team member<small>Workspace access</small></div></div></div>
     </aside>
     <main>
-      <header><span>Workspace　›　<b>{page}</b></span><small><span className="live-dot"/> PRODUCTION</small></header>
+      <header><span>Workspace　›　<b>{page}</b></span><small><span className="live-dot"/> STATIC PORTFOLIO</small></header>
       <section className="heading">
         <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>{page === "Threat intelligence" ? "Threat Intelligence Center" : page === "ATT&CK catalog" ? "MITRE ATT&CK Catalog" : page === "Rule generator" ? "Detection Rule Generator" : page === "Correlation" ? "Intelligence Correlation" : page === "Threat graph" ? "Threat Entity Graph" : page === "Cyber news" ? "Cyber News & Security Briefing" : "Good morning, team 👋"}</h1><p>Monitor threat intelligence, preserve source evidence, and prepare trusted inputs for detection engineering.</p></div>
         {page === "Threat intelligence" && <div className="feed-actions"><button onClick={startPipeline} disabled={pipelineQueued}><Network size={16} className={pipelineQueued ? "spin" : ""}/>{pipelineQueued ? "Queueing…" : "Run full pipeline"}</button><button onClick={syncCisa} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncing ? "spin" : ""}/>{syncing ? "Syncing CISA…" : "Sync CISA KEV"}</button><button onClick={syncNvd} disabled={syncing||syncingNvd}><RefreshCw size={16} className={syncingNvd ? "spin" : ""}/>{syncingNvd ? "Syncing NVD…" : "Sync NVD CVEs"}</button><label className="upload-button">{uploadingCsv?"Importing CSV…":"Import CSV"}<input type="file" accept=".csv,text/csv" disabled={uploadingCsv} onChange={e=>{const input=e.currentTarget;const file=input.files?.[0];input.value="";if(file)void importCsv(file);}}/></label></div>}
         {page === "ATT&CK catalog" && <button onClick={syncAttack} disabled={syncingAttack}><RefreshCw size={16} className={syncingAttack ? "spin" : ""}/>{syncingAttack ? "Syncing catalog…" : "Sync ATT&CK"}</button>}
       </section>
-      {error && <div className="notice error"><AlertTriangle size={16}/>{error}<button onClick={loadData}>Retry</button></div>}
+      <div className="notice"><AlertTriangle size={16}/> Read-only portfolio snapshot. Public CISA KEV and MITRE ATT&amp;CK data refresh daily at 08:00 IST; imports, manual sync and persistent writes require a backend and are disabled in this GitHub Pages deployment.</div>\n      {error && <div className="notice error"><AlertTriangle size={16}/>{error}<button onClick={loadData}>Retry</button></div>}
       {notice && <div className="notice success"><CheckCircle2 size={16}/>{notice}</div>}
       {page === "Cyber news" ? <>
         <section className="banner"><Newspaper/><div><b>Cybersecurity headlines from trusted public sources</b><p>Short summaries, practical impact and severity labels to help you scan what matters.</p></div><span>LIVE FEED</span></section>
@@ -570,7 +626,7 @@ function App() {
           </div>
         </section>
       </> : page === "Threat intelligence" ? <>
-        <section className="banner"><Radar/><div><b>CISA Known Exploited Vulnerabilities</b><p>CISA KEV and NVD CVE catalogues · fixed trusted HTTPS sources · idempotent ingestion with source provenance.</p></div><span>{feeds.find(f => f.name === "CISA KEV")?.status?.toUpperCase() || "NOT SYNCED"}</span></section>
+        <section className="banner"><Radar/><div><b>CISA Known Exploited Vulnerabilities</b><p>Daily public CISA KEV and MITRE ATT&CK snapshots with source attribution. CVSS is shown only when supplied by NVD.</p></div><span>{feeds.find(f => f.name === "CISA KEV")?.status?.toUpperCase() || "NOT SYNCED"}</span></section>
         <section className="stats">{stats.map(({ label, value, note, icon: Icon }) => <article key={label}><div>{label}<Icon size={18}/></div><strong>{loading ? "…" : value.toLocaleString?.() ?? value}</strong><small>{note}</small></article>)}</section>
         <section className="panel intel-panel">
           <div className="panelhead"><div><b>Indicator inventory</b><p>Quickly narrow current intelligence by recency, impact and status</p></div><span>{filtered.length} matching records</span></div>
@@ -583,7 +639,7 @@ function App() {
           </div>
           <small className="muted">Severity is source-provided or derived from CVSS. CVSS is the vulnerability base score (0–10), shown only when NVD provides it. Confidence is a feed-specific ingestion value, not a universal risk score. Impact is currently grouped from severity.</small>
           <div className="scoring-guide"><b>How severity and scores are identified</b>
-            <span><strong>Severity</strong> NVD uses the CVSS baseSeverity label (CVSS v3/v4 bands: Critical 9.0–10.0, High 7.0–8.9, Medium 4.0–6.9, Low 0.1–3.9; 0.0 is None). CISA KEV currently uses High when known ransomware campaign use is flagged, otherwise Medium. URLhaus, OpenPhish, SSLBL and Feodo currently receive a High feed default. Custom CSV uses the supplied severity, or Unknown if omitted.</span>
+            <span><strong>Severity</strong> NVD uses the CVSS baseSeverity label (CVSS v3/v4 bands: Critical 9.0–10.0, High 7.0–8.9, Medium 4.0–6.9, Low 0.1–3.9; 0.0 is None). CISA KEV priority is labelled High when the feed flags known ransomware campaign use, otherwise Medium. This is an operational priority heuristic, not a CVSS severity assessment. This static portfolio refresh currently includes CISA KEV only; NVD CVSS is blank unless supplied by an NVD-backed record.</span>
             <span><strong>CVSS score</strong> The NVD CVSS baseScore (0–10) from CVSS v4.0, v3.1, v3.0 or v2 metrics. It is blank when no NVD score is available. It is not calculated by ThreatWeave.</span>
             <span><strong>Confidence</strong> Current configured feed values: NVD 90, CISA KEV 100, URLhaus 95, OpenPhish 85, SSLBL 90, Feodo 95. Custom CSV defaults to 50 if omitted. These are source-specific defaults, not a calibrated probability. Where multiple feeds contribute to one indicator, the stored indicator confidence is not separately calibrated per source.</span>
             <span><strong>Important</strong> Severity, CVSS and confidence are different fields. Do not compare confidence percentages as though they were vulnerability scores.</span>
