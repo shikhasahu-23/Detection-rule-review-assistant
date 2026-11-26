@@ -7,11 +7,11 @@ import {
 
 const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 type Summary = { indicators_total: number; active_indicators: number; sources_total: number; latest_run: { source: string; status: string; started_at: string; records_seen: number; indicators_created: number } | null };
-type Indicator = { id: string; indicator_type: string; value: string; confidence: number; severity: string; status: string; description: string | null; tags: string[]; created_at: string };
+type Indicator = { id: string; indicator_type: string; value: string; confidence: number; severity: string; status: string; description: string | null; tags: string[]; sources: string[]; cvss_score: number | null; created_at: string };
 type Feed = { name: string; status: string; last_run: string; records_seen: number; indicators_created: number };
 type DetectionIntent = { id: string; title: string; description: string; behavior: string; severity: string; target_platforms: string[]; attack_techniques?: string[]; status: string };
 type TestRun = { id:string; status:string; total_cases:number; passed_cases:number; failed_cases:number; case_results:{name:string;scenario_type:string;status:string;checks:{operator:string;value:string;passed:boolean}[]}[]; regression_report:{status:string;regressions:string[];improvements:string[]} };
-type RuleCandidate = { id: string; intent_id: string; name: string; platform: string; query: string; version: number; status: string; validation_status: string; validation_report: { errors: {code:string;message:string}[]; warnings: {code:string;message:string}[]; is_deployable: boolean; telemetry_coverage?: {score:number|null;status:string;matched_requirements:number;total_requirements:number} }; generation_metadata: {provider?:string;model?:string;prompt_version?:string;generated_at?:string;validation_scope?:string}; generator: string };
+type RuleCandidate = { id: string; intent_id: string; name: string; platform: string; query: string; version: number; status: string; validation_status: string; validation_report: { errors: {code:string;message:string}[]; warnings: {code:string;message:string}[]; is_deployable: boolean; telemetry_coverage?: {score:number|null;status:string;matched_requirements:number;total_requirements:number} }; generation_metadata: {provider?:string;model?:string;prompt_version?:string;generated_at?:string;validation_scope?:string;indicator_type?:string;indicator_count?:number}; generator: string };
 type AttackTechnique = { id: string; external_id: string; name: string; description: string; platforms: string[]; tactics: string[]; is_subtechnique: boolean; revoked: boolean; deprecated: boolean; source_url: string };
 type PipelineRun = { run_id: string; status: string; trigger: string; indicators_enriched: number; opportunities_found: number; candidates_created: number; candidates_skipped: number; started_at: string; completed_at: string | null; error_message: string | null; stage_results: Record<string, {status: string; reason?: string; error?: string}> };
 type ThreatNode = { id: string; entity_type: string; external_id: string; name: string; description?: string; impact: string | null; source_name: string; source_reference: string; source_url: string | null; revoked: boolean; deprecated: boolean };
@@ -472,12 +472,24 @@ function App() {
     return tacticMatch && techniqueMatch && queryMatch && platformMatch;
   });
   const libraryGroups = Object.values(filteredLibraryCandidates.reduce<Record<string, { key: string; title: string; subtitle: string; candidates: RuleCandidate[] }>>((groups, candidate) => {
-    const key = candidate.intent_id + "::" + candidate.name;
     const intent = intents.find(x => x.id === candidate.intent_id);
     const rawTitle = intent?.title || candidate.name;
     const iocBatch = rawTitle.match(/^ThreatWeave Active IOC Coverage:\\s*([a-z0-9_-]+):(\\d+)$/i);
-    const title = iocBatch ? `${iocBatch[1].toUpperCase()} IOC Coverage` : rawTitle;
-    const subtitle = iocBatch ? `Batch ${iocBatch[2]} · active ${iocBatch[1].toUpperCase()} indicators` : (intent?.description || candidate.name);
+    const kind = iocBatch?.[1].toLowerCase();
+    const names: Record<string,string> = {
+      cve: "Vulnerability Exposure Monitoring",
+      ip: "Suspicious IP Communication",
+      ipv4: "Suspicious IP Communication",
+      ipv6: "Suspicious IP Communication",
+      domain: "Malicious Domain Infrastructure",
+      hostname: "Malicious Hostname Monitoring",
+      url: "Malicious URL Access",
+      hash: "Known Malicious File Detection",
+      file_hash: "Known Malicious File Detection",
+    };
+    const key = kind ? `ioc::${kind}` : candidate.intent_id + "::" + candidate.name;
+    const title = kind ? (names[kind] || `${kind.toUpperCase()} Indicator Monitoring`) : rawTitle;
+    const subtitle = kind ? `Grouped active ${kind.toUpperCase()} indicators · separate batches and language versions` : (intent?.description || candidate.name);
     if (!groups[key]) groups[key] = { key, title, subtitle, candidates: [] };
     groups[key].candidates.push(candidate);
     return groups;
