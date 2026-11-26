@@ -507,7 +507,7 @@ function App() {
       file_hash: "Known Malicious File Detection",
     };
     const key = kind ? `ioc::${kind}` : candidate.intent_id + "::" + candidate.name;
-    const title = kind ? (names[kind] || `${kind.toUpperCase()} Indicator Monitoring`) : rawTitle;
+    const title = kind ? (names[kind] || (kind.startsWith("cve-cwe-") ? `CVE Weakness Group · ${kind.replace("cve-cwe-","CWE-").toUpperCase()}` : `${kind.toUpperCase()} Indicator Monitoring`)) : rawTitle;
     const subtitle = kind ? `Grouped active ${kind.toUpperCase()} indicators · separate batches and language versions` : (intent?.description || candidate.name);
     if (!groups[key]) groups[key] = { key, title, subtitle, candidates: [] };
     groups[key].candidates.push(candidate);
