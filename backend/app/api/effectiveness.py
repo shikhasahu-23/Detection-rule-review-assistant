@@ -10,5 +10,5 @@ router = APIRouter(prefix="/api/v1/detection-effectiveness", tags=["detection ef
 
 
 @router.get("")
-def detection_effectiveness(db: Annotated[Session, Depends(get_db)]) -> dict:
+def detection_effectiveness(db: Annotated[Session, Depends(get_db, scope="function")]) -> dict:
     return build_detection_effectiveness(db)
