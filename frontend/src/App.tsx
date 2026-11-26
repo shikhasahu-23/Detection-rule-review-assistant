@@ -452,18 +452,54 @@ function App() {
         if (!indicatorsForIntent.length) continue;
         const matchedCves = [...new Set(indicatorsForIntent.filter(item => item.indicator_type.toLowerCase() === "cve" || /^CVE-\\d{4}-\\d+$/i.test(item.value)).map(item => item.value))];
         const evidenceCount = evidence.length || indicatorsForIntent.reduce((sum, item) => sum + (Array.isArray((item as any).sources) ? (item as any).sources.length : 0), 0);
-        results.push({
-          intent_id: intent.id, title: (/active ioc coverage:\s*cve:/i.test(intent.title) && matchedCves.length > 0) ? `CVE evidence cluster · ${matchedCves.length} exact CVE matches` : intent.title, severity: intent.severity || "unknown", status: intent.status || "active",
-          target_platforms: intent.target_platforms || [], association_type: "explicit_reference",
-          indicators: indicatorsForIntent.slice(0, 100).map(item => ({
-            indicator_id: item.id, indicator_type: item.indicator_type, value: item.value, confidence: item.confidence,
-            severity: item.severity, freshness: item.created_at, evidence_count: Array.isArray((item as any).sources) ? (item as any).sources.length : 0,
-            match_basis: matchBasis.get(item.id) || [],
-          })),
-          matched_techniques: matchedTechniques, matched_cves: matchedCves, indicator_count: indicatorsForIntent.length,
-          evidence_count: evidenceCount,
-          rationale: "Matched only by explicit CVE references or indicator IDs stored with this detection intent. ATT&CK techniques are shown only when explicitly assigned; no attribution is inferred.",
-        });
+        const isAutoCveBatch = /^ThreatWeave Active IOC Coverage:\\s*cve:\\d+$/i.test(intent.title);
+        const makeOpportunity = (groupKey: string, title: string, groupIndicators: Indicator[], groupReason: string) => {
+          const groupCves = [...new Set(groupIndicators.filter(item => item.indicator_type.toLowerCase() === "cve" || /^CVE-\\d{4}-\\d+$/i.test(item.value)).map(item => item.value))];
+          results.push({
+            intent_id: `${intent.id}:${groupKey}`, title, severity: intent.severity || "unknown", status: intent.status || "active",
+            target_platforms: intent.target_platforms || [], association_type: "explicit_reference",
+            indicators: groupIndicators.slice(0, 100).map(item => ({
+              indicator_id: item.id, indicator_type: item.indicator_type, value: item.value, confidence: item.confidence,
+              severity: item.severity, freshness: item.created_at, evidence_count: Array.isArray((item as any).sources) ? (item as any).sources.length : 0,
+              match_basis: matchBasis.get(item.id) || [],
+            })),
+            matched_techniques: matchedTechniques, matched_cves: groupCves, indicator_count: groupIndicators.length,
+            evidence_count: groupIndicators.reduce((sum, item) => sum + ((Array.isArray((item as any).sources) ? (item as any).sources.length : 0) || 1), 0),
+            rationale: groupReason,
+          });
+        };
+        if (isAutoCveBatch) {
+          const groups = new Map<string, { title: string; reason: string; items: Indicator[] }>();
+          for (const item of indicatorsForIntent) {
+            const meta = item as any;
+            const vendor = String(meta.vendor_project || "").trim();
+            const product = String(meta.product || "").trim();
+            const cwe = (Array.isArray(meta.tags) ? meta.tags : []).map((tag: string) => String(tag).match(/CWE[-_ ]?(\\d+)/i)?.[1]).find(Boolean);
+            let key = "";
+            let title = "";
+            let reason = "";
+            if (vendor && product) {
+              key = `product:${vendor.toLowerCase()}:${product.toLowerCase()}`;
+              title = `${vendor} ${product} — known exploited vulnerabilities`;
+              reason = `Grouped because these CVEs identify the same affected vendor and product in CISA KEV. Each CVE remains individually listed as evidence; this is a shared product exposure, not proof of a shared exploit or campaign.`;
+            } else if (cwe) {
+              key = `cwe:${cwe}`;
+              const weaknessNames: Record<string, string> = { "79":"Cross-Site Scripting", "89":"SQL Injection", "78":"OS Command Injection", "22":"Path Traversal", "352":"Cross-Site Request Forgery", "287":"Improper Authentication", "862":"Missing Authorization", "200":"Information Exposure", "416":"Use-After-Free", "787":"Out-of-Bounds Write", "125":"Out-of-Bounds Read", "476":"NULL Pointer Dereference", "20":"Improper Input Validation", "94":"Code Injection", "434":"Unrestricted File Upload", "502":"Deserialization of Untrusted Data" };
+              title = `${weaknessNames[cwe] || "CWE-" + cwe} vulnerabilities — related CVEs`;
+              reason = `Grouped because the source metadata assigns these CVEs the same weakness classification, CWE-${cwe}. This indicates a shared vulnerability class, not a shared affected product or threat actor.`;
+            } else {
+              key = `cve:${item.value.toUpperCase()}`;
+              const description = String(meta.description || "").trim();
+              title = description ? `${item.value} — ${description.slice(0, 105)}` : `${item.value} — individual vulnerability record`;
+              reason = "No common affected product or CWE classification is available in the source metadata, so this CVE is kept separate rather than being grouped under an invented relationship.";
+            }
+            if (!groups.has(key)) groups.set(key, { title, reason, items: [] });
+            groups.get(key)!.items.push(item);
+          }
+          for (const [key, group] of groups) makeOpportunity(key, group.title, group.items, group.reason);
+          continue;
+        }
+        makeOpportunity("intent", intent.title, indicatorsForIntent, "Matched only by explicit CVE references or indicator IDs stored with this detection intent. ATT&CK techniques are shown only when explicitly assigned; no attribution is inferred.");
       }
       results.sort((a, b) => b.indicator_count - a.indicator_count || b.evidence_count - a.evidence_count);
       setOpportunities(results);
@@ -871,7 +907,7 @@ function App() {
             <div className="candidate-title"><div><b>{item.title}</b><small>{item.severity.toUpperCase()} · {item.status.toUpperCase()} · {item.target_platforms.map(p=>p.toUpperCase()).join(", ")}</small></div><span>{item.indicator_count} indicators</span></div>
             <div className="correlation-explanation"><b>Why this use case is linked</b><p>The detection intent contains an explicit evidence reference that resolves to the indicator records listed below. This is a direct evidence match, not a similarity score.</p><div className="correlation-path"><span>{item.title}</span><i>exact saved evidence reference / ID</i><span>{item.indicator_count} matched indicator{item.indicator_count===1?"":"s"}</span></div></div>
             {item.matched_techniques.length>0&&<div className="correlation-context"><b>ATT&amp;CK context · separately assigned</b><p>These technique IDs were attached to the detection intent. They provide behavioural context only; this page does not claim that the matched indicators independently prove these techniques.</p><div className="library-filters">{item.matched_techniques.map(id=><span className="type-pill" key={id}>ATT&amp;CK {id}</span>)}</div></div>}
-            {item.matched_cves.length>0&&<div className="correlation-context"><b>Matched CVEs</b><p>These CVE identifiers are present as matched intelligence indicators.</p><div className="library-filters">{item.matched_cves.map(id=><span className="type-pill" key={id}>{id}</span>)}</div></div>}
+            {item.matched_cves.length>0&&<div className="correlation-context"><b>Related CVEs · shared vulnerability context</b><p>These CVEs are grouped only when source metadata confirms a common affected vendor/product or CWE weakness. Otherwise each CVE stays separate.</p><div className="library-filters">{item.matched_cves.map(id=><span className="type-pill" key={id}>{id}</span>)}</div></div>}
             <div className="table-wrap"><table><thead><tr><th>INDICATOR</th><th>WHY IT MATCHED</th><th>SEVERITY</th><th>CONFIDENCE</th><th>FRESHNESS</th><th>SOURCE COUNT</th></tr></thead><tbody>{item.indicators.map(ind=><tr key={ind.indicator_id}><td><b>{ind.value}</b><small>{ind.indicator_type.toUpperCase()}</small></td><td>{ind.match_basis.join(" · ") || "Explicit evidence match"}</td><td>{ind.severity}</td><td>{ind.confidence}%</td><td>{ind.freshness}</td><td>{ind.evidence_count}</td></tr>)}</tbody></table></div>
             <small className="muted">{item.evidence_count} total intent evidence records · Direct association is based on exact reference / indicator ID matching. Source count is shown per indicator.</small>
           </article>)}
