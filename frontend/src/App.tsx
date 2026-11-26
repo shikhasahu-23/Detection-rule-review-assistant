@@ -671,7 +671,7 @@ function App() {
     groups[key].candidates.push(candidate);
     return groups;
   }, {}));
-  const latestGeneratedCandidates = Object.values(candidates.reduce<Record<string, RuleCandidate>>((latest, candidate) => {
+  const latestGeneratedCandidates = Object.values(candidates.filter(candidate => candidate.intent_id === selectedIntentId).reduce<Record<string, RuleCandidate>>((latest, candidate) => {
     if (!latest[candidate.platform] || candidate.version > latest[candidate.platform].version) latest[candidate.platform] = candidate;
     return latest;
   }, {}));
