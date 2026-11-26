@@ -478,6 +478,25 @@ function App() {
     const kind = iocBatch?.[1].toLowerCase();
     const names: Record<string,string> = {
       cve: "Vulnerability Exposure Monitoring",
+      "cve-cwe-79": "Cross-Site Scripting Vulnerability Detection",
+      "cve-cwe-89": "SQL Injection Vulnerability Detection",
+      "cve-cwe-78": "OS Command Injection Vulnerability Detection",
+      "cve-cwe-22": "Path Traversal Vulnerability Detection",
+      "cve-cwe-352": "Cross-Site Request Forgery Vulnerability Detection",
+      "cve-cwe-287": "Authentication Weakness Monitoring",
+      "cve-cwe-862": "Authorization Weakness Monitoring",
+      "cve-cwe-200": "Sensitive Information Exposure Monitoring",
+      "cve-cwe-416": "Use-After-Free Vulnerability Detection",
+      "cve-cwe-787": "Out-of-Bounds Write Vulnerability Detection",
+      "cve-cwe-125": "Out-of-Bounds Read Vulnerability Detection",
+      "cve-cwe-476": "Null Pointer Dereference Vulnerability Detection",
+      "cve-cwe-20": "Input Validation Vulnerability Detection",
+      "cve-cwe-94": "Code Injection Vulnerability Detection",
+      "cve-cwe-434": "Unrestricted File Upload Vulnerability Detection",
+      "cve-cwe-502": "Unsafe Deserialization Vulnerability Detection",
+      "cve-cwe-269": "Privilege Management Weakness Monitoring",
+      "cve-cwe-798": "Hard-Coded Credential Vulnerability Detection",
+      "cve-unclassified": "Unclassified CVE Vulnerability Monitoring",
       ip: "Suspicious IP Communication",
       ipv4: "Suspicious IP Communication",
       ipv6: "Suspicious IP Communication",
@@ -722,7 +741,7 @@ function App() {
               const batchMatch=batchTitle.match(/^ThreatWeave Active IOC Coverage:\\s*([a-z0-9_-]+):(\\d+)$/i);
               const batchKey=batchCandidates[0]?.intent_id||group.key;
               return <section className="library-batch" key={batchKey}>
-                {batchMatch&&<div className="library-batch-head"><b>Batch {batchMatch[2]}</b><span>{batchCandidates[0]?.generation_metadata?.indicator_count??"—"} active indicators</span></div>}
+                {batchMatch&&<div className="library-batch-head"><b>Batch {batchMatch[2]}</b><span>{batchCandidates[0]?.generation_metadata?.indicator_count??"—"} active indicators{batchMatch[1].startsWith("cve-cwe-")?` · ${batchMatch[1].replace("cve-cwe-","CWE-")}`:""}</span></div>}
                 <div className="library-platform-grid">{Object.entries(batchCandidates.reduce<Record<string, RuleCandidate[]>>((byPlatform, candidate) => { (byPlatform[candidate.platform] ||= []).push(candidate); return byPlatform; }, {})).map(([platform, versions])=>{
                   const ordered=[...versions].sort((a,b)=>b.version-a.version);
                   const selectionKey=group.key+"::"+batchKey+"::"+platform;
