@@ -183,6 +183,7 @@ def sync_ioc_rules(db: Session, *, provider=None, indicator_limit: int = 50000) 
     ).all()
 
     # Backfill CWE tags from already-stored NVD evidence as well as newly synced indicators.
+    indicator_by_id = {row.id: row for row in indicators}
     cve_ids = [row.id for row in indicators if row.indicator_type.lower() == "cve"]
     if cve_ids:
         nvd_evidence = db.scalars(select(SourceEvidence).where(
@@ -200,7 +201,7 @@ def sync_ioc_rules(db: Session, *, provider=None, indicator_limit: int = 50000) 
                     if isinstance(value, str) and value.upper().startswith("CWE-") and value[4:].isdigit():
                         extracted.add(f"cwe:{value.upper()}")
             if extracted:
-                indicator = next((row for row in indicators if row.id == evidence.indicator_id), None)
+                indicator = indicator_by_id.get(evidence.indicator_id)
                 if indicator is not None:
                     indicator.tags = sorted(set(indicator.tags or []) | extracted)
 
