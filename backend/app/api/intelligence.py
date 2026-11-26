@@ -40,7 +40,7 @@ class IndicatorOut(BaseModel):
     status: str
     description: str | None
     tags: list
-    sources: list[str] = []
+    sources: list[str] = Field(default_factory=list)
     cvss_score: float | None = None
     created_at: datetime
 
