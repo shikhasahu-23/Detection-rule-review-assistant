@@ -651,7 +651,7 @@ function App() {
           {!loadingOpportunities && opportunities.length===0&&<p className="no-data">No evidence-backed detection opportunities yet. Import or sync intelligence and create detection intents with matching ATT&amp;CK IDs or CVE evidence references.</p>}
         </section>
       </> : page === "Rule generator" ? <>
-        <section className="banner"><Sparkles/><div><b>Generate queries for your SIEMs</b><p>One detection idea produces ready-to-copy query drafts for every selected language. No AI API key or paid generation service.</p></div><span>FREE</span></section>
+        <section className="banner"><Sparkles/><div><b>Generate queries for your SIEMs</b><p>Choose a detection use case and generate one query per selected language. The current generator supports four formats: Splunk SPL, Sentinel KQL, Google SecOps YARA-L and Sigma YAML.</p></div><span>4 FORMATS</span></section>
         <section className="panel" style={{marginTop:16,padding:15}}>
           <b>How to use it</b>
           <p className="muted" style={{marginTop:7}}>1. Describe the activity you want to detect. 2. Add the ATT&amp;CK technique IDs if known. 3. Choose the platforms. 4. Generate and copy the query you need.</p>
@@ -665,24 +665,24 @@ function App() {
               <label>BEHAVIOR DETAILS</label><textarea value={intentBehavior} onChange={e=>setIntentBehavior(e.target.value)} placeholder="Describe the attacker behavior, sequence and expected signals."/>
               <small className="muted">Tip: mention known behaviors or tools (for example PowerShell, certutil or encoded commands) to make the free templates more specific.</small>
               <label>MITRE ATT&CK TECHNIQUE IDS (OPTIONAL)</label><input value={attackTechniqueIds} onChange={e=>setAttackTechniqueIds(e.target.value)} placeholder="T1059.001, T1105"/>
-              <label>QUERY LANGUAGES</label><div className="platform-options">{["splunk","sentinel","chronicle","sigma"].map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform==="sentinel"?"Microsoft Sentinel KQL":platform==="chronicle"?"Google SecOps YARA-L":platform==="sigma"?"Sigma YAML":"Splunk SPL"}</label>)}</div>
+              <label>QUERY LANGUAGES</label><div className="platform-options">{["splunk","sentinel","chronicle","sigma"].map(platform=><label className={"platform-choice platform-"+platform} key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/><span>{platform==="sentinel"?"Microsoft Sentinel KQL":platform==="chronicle"?"Google SecOps YARA-L":platform==="sigma"?"Sigma YAML":"Splunk SPL"}</span></label>)}</div>
               <button className="primary-action" disabled={creatingIntent||intentTitle.length<3||intentDescription.length<10||intentBehavior.length<10||targetPlatforms.length===0} onClick={createIntent}>{creatingIntent?"Saving intent…":"Save detection intent"}</button>
             </div>
           </article>
           <article className="panel"><div className="panelhead"><div><b>Generate candidates</b><p>Build drafts locally from free, deterministic platform templates.</p></div></div>
             <div className="intent-form">
               <label>SAVED DETECTION INTENT</label><select value={selectedIntentId} onChange={e=>{const id=e.target.value;setSelectedIntentId(id);const found=intents.find(x=>x.id===id);if(found)setTargetPlatforms(found.target_platforms);}}><option value="">Select a detection intent</option>{intents.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select>
-              <label>GENERATE QUERIES FOR</label><div className="platform-options">{["splunk","sentinel","chronicle","sigma"].map(platform=><label key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/>{platform==="sentinel"?"Sentinel KQL":platform==="chronicle"?"Chronicle YARA-L":platform==="sigma"?"Sigma YAML":"Splunk SPL"}</label>)}</div>
+              <label>GENERATE QUERIES FOR</label><div className="platform-options">{["splunk","sentinel","chronicle","sigma"].map(platform=><label className={"platform-choice platform-"+platform} key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/><span>{platform==="sentinel"?"Sentinel KQL":platform==="chronicle"?"Chronicle YARA-L":platform==="sigma"?"Sigma YAML":"Splunk SPL"}</span></label>)}</div>
               <button className="primary-action" disabled={generating||!selectedIntentId||targetPlatforms.length===0} onClick={generateRules}><Sparkles size={15}/>{generating?"Generating…":"Generate queries"}</button>
               <p className="muted">One click generates all selected languages. No review queue or approval workflow.</p>
             </div>
           </article>
         </section>
-        <section className="panel intel-panel"><div className="panelhead"><div><b>Your generated queries</b><p>Copy the query for the platform you use</p></div><span>{candidates.length} queries</span></div>
-          {candidates.length ? candidates.map(candidate=><article className="candidate-card" key={candidate.id}>
-            <div className="candidate-title"><div><b>{candidate.name}</b><small>{candidate.platform==="sentinel"?"Microsoft Sentinel KQL":candidate.platform==="chronicle"?"Google SecOps YARA-L":"Splunk SPL"} · Version {candidate.version}</small></div><button className="copy-query" onClick={()=>navigator.clipboard?.writeText(candidate.query).then(()=>setNotice("Query copied to clipboard."))}>Copy query</button></div>
+        <section className="panel intel-panel"><div className="panelhead"><div><b>Generated query formats</b><p>One latest query per language for the selected use case. Earlier versions remain in the Rule Library.</p></div><span>{latestGeneratedCandidates.length} formats</span></div>
+          {latestGeneratedCandidates.length ? latestGeneratedCandidates.map(candidate=><article className={"candidate-card language-"+candidate.platform} key={candidate.id}>
+            <div className="candidate-title"><div><b>{candidate.platform==="sentinel"?"Microsoft Sentinel KQL":candidate.platform==="chronicle"?"Google SecOps YARA-L 2.0":candidate.platform==="sigma"?"Sigma YAML":"Splunk SPL"}</b><small>{candidate.name} · Latest version v{candidate.version}</small></div><button className="copy-query" onClick={()=>navigator.clipboard?.writeText(candidate.query).then(()=>setNotice("Query copied to clipboard."))}>Copy query</button></div>
             <pre>{candidate.query}</pre>
-          </article>) : <p className="no-data">No candidates yet. Save a detection intent and generate the first draft.</p>}
+          </article>) : <p className="no-data">No generated queries for this use case yet. Select one or more languages and generate.</p>}
         </section>
       </> : page === "Rule library" ? <>
         <section className="banner"><Database/><div><b>Searchable detection rule library</b><p>Browse generated and manually authored candidate versions across detection intents. All entries remain non-approved and non-deployable.</p></div><span>CATALOG</span></section>
