@@ -8,7 +8,7 @@ import {
 
 const DATA_ROOT = `${import.meta.env.BASE_URL}data/`;
 const readData = async (name: string) => {
-  const response = await fetch(DATA_ROOT + name);
+  const response = await fetch(DATA_ROOT + name, { cache: "no-store" });
   if (!response.ok) throw new Error(`Unable to load ${name}`);
   return response.json();
 };
@@ -565,6 +565,13 @@ function App() {
     if (page === "Cyber news") void loadCyberNews();
   }, [page, loadCyberNews]);
 
+  const refreshPublishedSnapshot = async () => {
+    setError("");
+    setNotice("");
+    await Promise.all([loadData(), loadCyberNews(), loadAttackCatalog(), loadOpportunities()]);
+    setNotice("Latest published intelligence snapshot reloaded. Source feeds are refreshed automatically by the scheduled pipeline.");
+  };
+
   const startPipeline = async () => {
     setPipelineQueued(true); setError(""); setNotice("");
     try {
@@ -741,7 +748,7 @@ function App() {
       <header><span>Workspace　›　<b>{page}</b></span><small><span className="live-dot"/> STATIC PORTFOLIO</small></header>
       <section className="heading">
         <div><label>DETECTION ENGINEERING WORKSPACE</label><h1>{page === "Threat intelligence" ? "Threat Intelligence Center" : page === "ATT&CK catalog" ? "MITRE ATT&CK Catalog" : page === "Rule generator" ? "Detection Rule Generator" : page === "Correlation" ? "Intelligence Correlation" : page === "Threat graph" ? "Threat Entity Graph" : page === "Cyber news" ? "Cyber News & Security Briefing" : "Good morning, team 👋"}</h1><p>{page === "Correlation" ? "Trace each detection use case to the exact CVE or indicator evidence that supports the relationship." : page === "Cyber news" ? "Track recent security developments, understand their operational impact, and follow the original sources." : "Monitor threat intelligence, preserve source evidence, and prepare trusted inputs for detection engineering."}</p></div>
-        {page === "Threat intelligence" && <div className="feed-actions"><a className="workflow-run-button" href="https://github.com/shikhasahu-23/ThreatWeave/actions/workflows/refresh-static-intelligence.yml" target="_blank" rel="noreferrer"><Network size={16}/>Run intelligence refresh<ArrowUpRight size={14}/></a><button disabled title="Scheduled refresh runs daily through GitHub Actions"><RefreshCw size={16} className={syncing ? "spin" : ""}/>{syncing ? "Syncing CISA…" : "Sync CISA KEV"}</button><button disabled title="NVD is not part of the current static refresh"><RefreshCw size={16} className={syncingNvd ? "spin" : ""}/>{syncingNvd ? "Syncing NVD…" : "Sync NVD CVEs"}</button><label className="upload-button" aria-disabled="true" title="CSV import requires a backend">CSV import unavailable<input type="file" accept=".csv,text/csv" disabled onChange={e=>{const input=e.currentTarget;const file=input.files?.[0];input.value="";if(file)void importCsv(file);}}/></label></div>}
+        {page === "Threat intelligence" && <div className="feed-actions"><button className="workflow-run-button" onClick={refreshPublishedSnapshot} disabled={loading || loadingNews}><Network size={16}/>{loading || loadingNews ? "Refreshing snapshot…" : "Refresh snapshot"}</button><button disabled title="Scheduled refresh runs daily through GitHub Actions"><RefreshCw size={16} className={syncing ? "spin" : ""}/>{syncing ? "Syncing CISA…" : "Sync CISA KEV"}</button><button disabled title="NVD is not part of the current static refresh"><RefreshCw size={16} className={syncingNvd ? "spin" : ""}/>{syncingNvd ? "Syncing NVD…" : "Sync NVD CVEs"}</button><label className="upload-button" aria-disabled="true" title="CSV import requires a backend">CSV import unavailable<input type="file" accept=".csv,text/csv" disabled onChange={e=>{const input=e.currentTarget;const file=input.files?.[0];input.value="";if(file)void importCsv(file);}}/></label></div>}
         {page === "ATT&CK catalog" && <button disabled title="ATT&CK refresh runs daily through GitHub Actions"><RefreshCw size={16} className={syncingAttack ? "spin" : ""}/>{syncingAttack ? "Syncing catalog…" : "Sync ATT&CK"}</button>}
       </section>
       {!["Correlation", "Cyber news"].includes(page) && <div className="notice"><AlertTriangle size={16}/> Portfolio snapshot. Public CISA KEV and MITRE ATT&amp;CK data refresh daily at 08:00 IST. Detection intents and query drafts can be saved locally in this browser; they are not synced across devices. Shared storage, live ingestion and server-side testing require a backend.</div>}
@@ -750,7 +757,7 @@ function App() {
       {page === "Cyber news" ? <>
         <section className="banner"><Newspaper/><div><b>Cybersecurity headlines from trusted public sources</b><p>Short summaries, practical impact and severity labels to help you scan what matters.</p></div><span>RSS SNAPSHOT</span></section>
         <section className="panel intel-panel">
-          <div className="panelhead"><div><b>Latest cyber news</b><p>{newsFetchedAt ? `Fetched ${new Date(newsFetchedAt).toLocaleString()}` : "Latest published RSS snapshot · refreshed daily by GitHub Actions."}</p></div><a className="workflow-run-button" href="https://github.com/shikhasahu-23/ThreatWeave/actions/workflows/refresh-static-intelligence.yml" target="_blank" rel="noreferrer"><RefreshCw size={15}/>Refresh news<ArrowUpRight size={14}/></a></div>
+          <div className="panelhead"><div><b>Latest cyber news</b><p>{newsFetchedAt ? `Fetched ${new Date(newsFetchedAt).toLocaleString()}` : "Latest published RSS snapshot · refreshed daily by GitHub Actions."}</p></div><button className="workflow-run-button" onClick={refreshPublishedSnapshot} disabled={loadingNews}>{loadingNews ? "Refreshing news…" : <><RefreshCw size={15}/>Refresh news</>}</button></div>
           <div className="library-filters">
             <select value={newsWindow} onChange={e=>setNewsWindow(e.target.value)}><option value="24h">Last 24 hours</option><option value="7d">Last 7 days</option><option value="all">All fetched</option></select>
             <select value={newsSeverity} onChange={e=>setNewsSeverity(e.target.value)}><option value="">All severities</option><option value="critical">Critical</option><option value="high">High</option><option value="medium">Medium</option><option value="low">Low</option></select>
@@ -801,7 +808,7 @@ function App() {
           </div>
         </section>
       </> : page === "Threat intelligence" ? <>
-        <section className="intel-hero"><div className="intel-hero-orbit"><Radar size={34}/><span></span><i></i></div><div className="intel-hero-copy"><label>THREAT LANDSCAPE · PUBLIC INTELLIGENCE</label><h2>Know what is being exploited.<br/><em>Prioritise what matters.</em></h2><p>CISA Known Exploited Vulnerabilities and MITRE ATT&CK snapshots, with source attribution and transparent scoring.</p><div className="intel-hero-meta"><span><i className="hero-live-dot"/> DAILY SNAPSHOT</span><span>LAST SCHEDULED REFRESH · 08:00 IST</span></div></div><div className="intel-hero-side"><span className="intel-status-label">CISA KEV FEED</span><b>{feeds.find(f => f.name === "CISA KEV")?.status?.toUpperCase() || "SNAPSHOT"}</b><a className="workflow-run-button" href="https://github.com/shikhasahu-23/ThreatWeave/actions/workflows/refresh-static-intelligence.yml" target="_blank" rel="noreferrer"><RefreshCw size={15}/>Run refresh<ArrowUpRight size={14}/></a></div></section>
+        <section className="intel-hero"><div className="intel-hero-orbit"><Radar size={34}/><span></span><i></i></div><div className="intel-hero-copy"><label>THREAT LANDSCAPE · PUBLIC INTELLIGENCE</label><h2>Know what is being exploited.<br/><em>Prioritise what matters.</em></h2><p>CISA Known Exploited Vulnerabilities and MITRE ATT&CK snapshots, with source attribution and transparent scoring.</p><div className="intel-hero-meta"><span><i className="hero-live-dot"/> DAILY SNAPSHOT</span><span>LAST SCHEDULED REFRESH · 08:00 IST</span></div></div><div className="intel-hero-side"><span className="intel-status-label">CISA KEV FEED</span><b>{feeds.find(f => f.name === "CISA KEV")?.status?.toUpperCase() || "SNAPSHOT"}</b><button className="workflow-run-button" onClick={refreshPublishedSnapshot} disabled={loading}>{loading ? "Refreshing…" : <><RefreshCw size={15}/>Refresh data</>}</button></div></section>
         <section className="stats">{stats.map(({ label, value, note, icon: Icon }) => <article key={label}><div>{label}<Icon size={18}/></div><strong>{loading ? "…" : value.toLocaleString?.() ?? value}</strong><small>{note}</small></article>)}</section>
         <section className="panel intel-panel">
           <div className="panelhead"><div><b>Indicator inventory</b><p>Quickly narrow current intelligence by recency, impact and status</p></div><span>{filtered.length} matching records</span></div>
