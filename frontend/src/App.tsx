@@ -74,7 +74,7 @@ type ThreatNode = { id: string; entity_type: string; external_id: string; name: 
 type ThreatEdge = { id: string; source: string; target: string; relationship_type: string; assertion_status: string; source_name: string; source_reference: string; source_url: string | null };
 type ThreatGraph = { nodes: ThreatNode[]; edges: ThreatEdge[]; truncated: boolean };
 type CyberNews = { id:string; headline:string; summary:string; impact:string; severity:string; source:string; url:string; published_at:string };
-type Opportunity = { intent_id: string; title: string; severity: string; status: string; target_platforms: string[]; association_type: string; indicators: { indicator_id: string; indicator_type: string; value: string; confidence: number; severity: string; freshness: string; evidence_count: number }[]; matched_techniques: string[]; matched_cves: string[]; indicator_count: number; evidence_count: number; rationale: string };
+type Opportunity = { intent_id: string; title: string; severity: string; status: string; target_platforms: string[]; association_type: string; indicators: { indicator_id: string; indicator_type: string; value: string; confidence: number; severity: string; freshness: string; evidence_count: number; match_basis: string[] }[]; matched_techniques: string[]; matched_cves: string[]; indicator_count: number; evidence_count: number; rationale: string };
 
 const LOCAL_INTENTS_KEY = "threatweave:local-detection-intents:v1";
 const LOCAL_RULES_KEY = "threatweave:local-rule-drafts:v1";
@@ -432,13 +432,20 @@ function App() {
         const refs = new Set<string>(evidence.map((item: any) => String(item.reference || "").toUpperCase()).filter(Boolean));
         const evidenceIds = new Set<string>(evidence.map((item: any) => String(item.indicator_id || "")).filter(Boolean));
         const matches = new Map<string, Indicator>();
+        const matchBasis = new Map<string, string[]>();
         for (const ref of refs) {
           const indicator = indicatorByValue.get(ref);
-          if (indicator) matches.set(indicator.id, indicator);
+          if (indicator) {
+            matches.set(indicator.id, indicator);
+            matchBasis.set(indicator.id, [...(matchBasis.get(indicator.id) || []), `Exact reference: ${ref}`]);
+          }
         }
         for (const id of evidenceIds) {
           const indicator = indicatorById.get(id);
-          if (indicator) matches.set(indicator.id, indicator);
+          if (indicator) {
+            matches.set(indicator.id, indicator);
+            matchBasis.set(indicator.id, [...(matchBasis.get(indicator.id) || []), `Exact indicator ID: ${id}`]);
+          }
         }
         const matchedTechniques = [...new Set((intent.attack_techniques || []).map((id: string) => id.toUpperCase()).filter((id: string) => /^T\\d{4}(?:\\.\\d{3})?$/.test(id)))];
         const indicatorsForIntent = [...matches.values()];
@@ -451,6 +458,7 @@ function App() {
           indicators: indicatorsForIntent.slice(0, 100).map(item => ({
             indicator_id: item.id, indicator_type: item.indicator_type, value: item.value, confidence: item.confidence,
             severity: item.severity, freshness: item.created_at, evidence_count: Array.isArray((item as any).sources) ? (item as any).sources.length : 0,
+            match_basis: matchBasis.get(item.id) || [],
           })),
           matched_techniques: matchedTechniques, matched_cves: matchedCves, indicator_count: indicatorsForIntent.length,
           evidence_count: evidenceCount,
@@ -844,15 +852,27 @@ function App() {
           {threatGraph.nodes.length>0&&threatGraph.edges.length===0&&<p className="no-data">Entities are loaded, but no relationships with both endpoints are available yet.</p>}
         </section>
             </> : page === "Correlation" ? <>
-        <section className="banner"><BrainCircuit/><div><b>Evidence-backed detection opportunities</b><p>Correlations are created only from exact ATT&CK technique IDs or CVE references shared by intelligence evidence and detection intents. No actor or campaign attribution is inferred.</p></div><span>EXPLAINABLE</span></section>
+        <section className="banner"><BrainCircuit/><div><b>Intelligence correlation · see exactly why items are linked</b><p>Each result starts with a detection intent and is linked to an intelligence indicator only when its saved evidence contains the same exact indicator value or indicator ID. ATT&CK techniques are displayed as separate context when explicitly assigned to that intent; they are not treated as proof that an indicator belongs to a technique, actor or campaign.</p></div><span>EXPLAINABLE</span></section>
         <section className="panel intel-panel">
-          <div className="panelhead"><div><b>Detection opportunities</b><p>Grouped by matching detection intent, with supporting indicators and source evidence counts.</p></div><button onClick={()=>void loadOpportunities()} disabled={loadingOpportunities}><RefreshCw size={15} className={loadingOpportunities?"spin":""}/> Refresh</button></div>
+          <div className="panelhead"><div><b>How correlation works</b><p>Follow the evidence chain from the use case to the intelligence record. Every link below has a visible matching reason.</p></div></div>
+          <div className="correlation-flow">
+            <article><span>01 · DETECTION INTENT</span><b>What we want to detect</b><small>A saved use case and its explicitly recorded evidence references.</small></article>
+            <div className="correlation-arrow">EXACT MATCH <span>→</span></div>
+            <article><span>02 · INTELLIGENCE</span><b>What the feed contains</b><small>An indicator with the same reference value or the same indicator ID.</small></article>
+            <div className="correlation-arrow">SUPPORTING CONTEXT <span>→</span></div>
+            <article><span>03 · INVESTIGATION</span><b>What it may help prioritise</b><small>Severity, confidence, freshness and source evidence help an analyst assess relevance; they do not prove causation.</small></article>
+          </div>
+          <div className="correlation-legend"><b>Important distinction</b><span><strong>Direct link:</strong> exact indicator value / ID match.</span><span><strong>ATT&amp;CK context:</strong> technique IDs assigned to the intent, shown separately.</span><span><strong>Not inferred:</strong> actor attribution, campaign membership, causation or technique-to-indicator relationships.</span></div>
+        </section>
+        <section className="panel intel-panel">
+          <div className="panelhead"><div><b>Detection opportunities</b><p>Each use case explains which evidence connected it to each intelligence indicator.</p></div><button onClick={()=>void loadOpportunities()} disabled={loadingOpportunities}><RefreshCw size={15} className={loadingOpportunities?"spin":""}/> Refresh</button></div>
           {opportunities.map(item=><article className="candidate-card" key={item.intent_id}>
             <div className="candidate-title"><div><b>{item.title}</b><small>{item.severity.toUpperCase()} · {item.status.toUpperCase()} · {item.target_platforms.map(p=>p.toUpperCase()).join(", ")}</small></div><span>{item.indicator_count} indicators</span></div>
-            <p className="muted">{item.rationale}</p>
-            <div className="library-filters">{item.matched_techniques.map(id=><span className="type-pill" key={id}>ATT&amp;CK {id}</span>)}{item.matched_cves.map(id=><span className="type-pill" key={id}>{id}</span>)}</div>
-            <div className="table-wrap"><table><thead><tr><th>INDICATOR</th><th>SEVERITY</th><th>CONFIDENCE</th><th>FRESHNESS</th><th>EVIDENCE</th></tr></thead><tbody>{item.indicators.map(ind=><tr key={ind.indicator_id}><td><b>{ind.value}</b><small>{ind.indicator_type.toUpperCase()}</small></td><td>{ind.severity}</td><td>{ind.confidence}%</td><td>{ind.freshness}</td><td>{ind.evidence_count}</td></tr>)}</tbody></table></div>
-            <small className="muted">{item.evidence_count} total source evidence records · Association: explicit reference</small>
+            <div className="correlation-explanation"><b>Why this use case is linked</b><p>The detection intent contains an explicit evidence reference that resolves to the indicator records listed below. This is a direct evidence match, not a similarity score.</p><div className="correlation-path"><span>{item.title}</span><i>exact saved evidence reference / ID</i><span>{item.indicator_count} matched indicator{item.indicator_count===1?"":"s"}</span></div></div>
+            {item.matched_techniques.length>0&&<div className="correlation-context"><b>ATT&amp;CK context · separately assigned</b><p>These technique IDs were attached to the detection intent. They provide behavioural context only; this page does not claim that the matched indicators independently prove these techniques.</p><div className="library-filters">{item.matched_techniques.map(id=><span className="type-pill" key={id}>ATT&amp;CK {id}</span>)}</div></div>}
+            {item.matched_cves.length>0&&<div className="correlation-context"><b>Matched CVEs</b><p>These CVE identifiers are present as matched intelligence indicators.</p><div className="library-filters">{item.matched_cves.map(id=><span className="type-pill" key={id}>{id}</span>)}</div></div>}
+            <div className="table-wrap"><table><thead><tr><th>INDICATOR</th><th>WHY IT MATCHED</th><th>SEVERITY</th><th>CONFIDENCE</th><th>FRESHNESS</th><th>SOURCE COUNT</th></tr></thead><tbody>{item.indicators.map(ind=><tr key={ind.indicator_id}><td><b>{ind.value}</b><small>{ind.indicator_type.toUpperCase()}</small></td><td>{ind.match_basis.join(" · ") || "Explicit evidence match"}</td><td>{ind.severity}</td><td>{ind.confidence}%</td><td>{ind.freshness}</td><td>{ind.evidence_count}</td></tr>)}</tbody></table></div>
+            <small className="muted">{item.evidence_count} total intent evidence records · Direct association is based on exact reference / indicator ID matching. Source count is shown per indicator.</small>
           </article>)}
           {!loadingOpportunities && opportunities.length===0&&<p className="no-data">No exact intelligence matches in this snapshot. Opportunities appear only when a detection intent contains a CVE or indicator reference that matches a published indicator; ATT&amp;CK mappings are shown when explicitly assigned.</p>}
         </section>
