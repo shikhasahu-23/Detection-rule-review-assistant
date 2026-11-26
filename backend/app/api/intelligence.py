@@ -40,6 +40,8 @@ class IndicatorOut(BaseModel):
     status: str
     description: str | None
     tags: list
+    sources: list[str] = []
+    cvss_score: float | None = None
     created_at: datetime
 
 
@@ -112,7 +114,41 @@ def list_indicators(
         stmt = stmt.where(Indicator.value.ilike(f"%{q}%"))
     if indicator_type:
         stmt = stmt.where(Indicator.indicator_type == indicator_type.lower())
-    return db.scalars(stmt).all()
+    rows = db.scalars(stmt).all()
+    if not rows:
+        return []
+    evidence_rows = db.scalars(
+        select(SourceEvidence).where(SourceEvidence.indicator_id.in_([row.id for row in rows]))
+    ).all()
+    evidence_by_indicator: dict[UUID, list[SourceEvidence]] = {}
+    for evidence in evidence_rows:
+        evidence_by_indicator.setdefault(evidence.indicator_id, []).append(evidence)
+    output = []
+    for row in rows:
+        evidence = evidence_by_indicator.get(row.id, [])
+        cvss_score = None
+        for item in evidence:
+            metrics = (item.raw_data or {}).get("metrics", {}) if isinstance(item.raw_data, dict) else {}
+            if not isinstance(metrics, dict):
+                continue
+            for key in ("cvssMetricV40", "cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
+                entries = metrics.get(key)
+                if isinstance(entries, list) and entries and isinstance(entries[0], dict):
+                    cvss_data = entries[0].get("cvssData", {})
+                    score = cvss_data.get("baseScore") if isinstance(cvss_data, dict) else None
+                    if isinstance(score, (int, float)) and not isinstance(score, bool):
+                        cvss_score = float(score)
+                        break
+            if cvss_score is not None:
+                break
+        output.append({
+            "id": row.id, "indicator_type": row.indicator_type, "value": row.value,
+            "confidence": row.confidence, "severity": row.severity, "status": row.status,
+            "description": row.description, "tags": row.tags,
+            "sources": sorted({item.source_name for item in evidence}),
+            "cvss_score": cvss_score, "created_at": row.created_at,
+        })
+    return output
 
 
 @router.get("/indicators/{indicator_id}/evidence")
