@@ -16,6 +16,21 @@ API_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 SOURCE_NAME = "NVD CVE"
 
 
+def _weakness_tags(cve: dict) -> list[str]:
+    """Extract concrete CWE IDs from NVD weakness metadata."""
+    tags: set[str] = set()
+    for weakness in cve.get("weaknesses", []):
+        if not isinstance(weakness, dict):
+            continue
+        for item in weakness.get("description", []):
+            if not isinstance(item, dict):
+                continue
+            value = item.get("value")
+            if isinstance(value, str) and value.upper().startswith("CWE-") and value[4:].isdigit():
+                tags.add(f"cwe:{value.upper()}")
+    return sorted(tags)
+
+
 def fetch_nvd(timeout: int = 30) -> dict:
     now = datetime.now(UTC)
     params = urlencode({
@@ -62,6 +77,7 @@ def sync_nvd_cves(db: Session, payload: dict | None = None) -> dict:
                 if isinstance(item, dict) and item.get("lang") == "en"
             ), "")
             severity = _severity(cve.get("metrics", {}))
+            weakness_tags = _weakness_tags(cve)
             indicator = db.scalar(select(Indicator).where(
                 Indicator.indicator_type == "cve", Indicator.value == cve_id
             ))
@@ -70,7 +86,7 @@ def sync_nvd_cves(db: Session, payload: dict | None = None) -> dict:
                     indicator_type="cve", value=cve_id, confidence=90,
                     severity=severity, status="active",
                     description=str(description)[:4000],
-                    tags=["nvd", "vulnerability"],
+                    tags=["nvd", "vulnerability", *weakness_tags],
                     first_seen=_parse_timestamp(cve.get("published")),
                     last_seen=_parse_timestamp(cve.get("lastModified")),
                 )
@@ -84,6 +100,8 @@ def sync_nvd_cves(db: Session, payload: dict | None = None) -> dict:
                     indicator.tags = tags
                 if not indicator.description and description:
                     indicator.description = str(description)[:4000]
+                current_tags = list(indicator.tags or [])
+                indicator.tags = sorted(set(current_tags + ["nvd", "vulnerability", *weakness_tags]))
                 if indicator.severity in {"unknown", "medium"} and severity != "unknown":
                     indicator.severity = severity
             reference = f"NVD:{cve_id}"
