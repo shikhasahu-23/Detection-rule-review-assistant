@@ -22,7 +22,7 @@ All public datasets are stored under `frontend/public/data/` and served below `/
 | `summary.json` | Portfolio totals and latest refresh metadata | Rebuilt daily |
 | `indicators.json` | Current CISA KEV indicator set | Replaced daily |
 | `attack-techniques.json` | MITRE ATT&CK Enterprise techniques | Replaced daily |
-| `feeds.json` | Status of the two scheduled public sources | Rebuilt daily |
+| `feeds.json` | Status of CISA KEV and MITRE ATT&CK | Rebuilt daily |\n| `cyber-news.json` | Attributed CISA, BleepingComputer and The Hacker News RSS headlines | Rebuilt daily; last good snapshot retained if all feeds fail |
 | `indicators-history-*.json` | Historical indicator export | Migration snapshot; not refreshed |
 | `detection-intents.json` | Exported production detection intents | Migration snapshot; not refreshed |
 | `rules-1.json` … `rules-6.json` | Exported rule candidates in bounded batches | Migration snapshot; not refreshed |
@@ -37,7 +37,7 @@ The initial export captured 5,225 historical indicators, 69 detection intents, 3
 - MITRE source: [MITRE ATT&CK Enterprise STIX data](https://github.com/mitre-attack/attack-stix-data). Technique records include ATT&CK ID, name, description, platforms, tactics and source URL.
 - KEV membership is not a CVSS rating. Current portfolio severity is a simple operational heuristic: High for entries where CISA flags known ransomware campaign use; Medium for other KEV entries.
 - Confidence is not a universal probability. CVSS is null unless explicitly provided by a CVSS-bearing source. Do not convert missing values to zero.
-- The static refresh does not currently ingest NVD CVSS, cyber-news, URLhaus, ThreatFox, OpenPhish, custom feeds or user uploads. The archived historical snapshot may contain other source names, but these sources are not part of the current scheduled refresh.
+- The static refresh does not ingest NVD CVSS, URLhaus, ThreatFox, custom feeds or user uploads. The archived historical snapshot may contain other source names, but these sources are not part of the current scheduled refresh.\n- Cyber-news severity is a keyword-based triage label, not CVSS or a verified incident severity. Impact text is a generic analyst prompt; always open the linked publisher source.\n- Correlation is computed in the browser using exact CVE/indicator references in archived detection-intent evidence matched against the public indicator snapshot. It does not infer actor attribution or create new source relationships.
 
 ## Scheduled refresh
 
@@ -46,7 +46,7 @@ Workflow: `.github/workflows/refresh-static-intelligence.yml`
 - Schedule: `30 2 * * *` UTC = 08:00 IST.
 - Manual run: GitHub → Actions → Refresh public threat intelligence → Run workflow.
 - Permissions: repository contents write, scoped to the workflow.
-- Steps: fetch CISA KEV and MITRE ATT&CK; normalize; write compact JSON; validate non-empty datasets; commit only when data changes.
+- Steps: fetch CISA KEV and MITRE ATT&CK; fetch public RSS headlines; normalize; write compact JSON; validate schemas; commit only when data changes. If every RSS source fails, preserve the last published news items.
 - A successful data commit triggers the GitHub Pages deployment workflow.
 
 Do not add API keys to frontend environment variables or static files. Public feeds used by this workflow do not require a secret. Never place a GitHub token in browser code.
@@ -54,12 +54,12 @@ Do not add API keys to frontend environment variables or static files. Public fe
 ## Local checks
 
 ```bash
-python -m py_compile scripts/refresh_static_intelligence.py
+python -m py_compile scripts/refresh_static_intelligence.py scripts/refresh_public_news.py
 python - <<'PY'
 import json
 from pathlib import Path
 root = Path("frontend/public/data")
-for name in ("summary.json", "indicators.json", "feeds.json", "attack-techniques.json"):
+for name in ("summary.json", "indicators.json", "feeds.json", "attack-techniques.json", "cyber-news.json"):
     json.loads((root / name).read_text())
 print("Public datasets parse successfully")
 PY
@@ -75,7 +75,7 @@ CI also verifies the frontend build and absence of the legacy Render API URL in 
 - Static data is read-only and is refreshed on a schedule, not continuously.
 - Detection intents, rules, graph and pipeline history are snapshots; they are not updated by the daily CISA/MITRE job.
 - Rule creation/generation, CSV/STIX imports, test execution, feed sync and other write actions require a backend and are not available on Pages.
-- Cyber-news and detection-effectiveness views do not have a live data provider in this deployment.
+- Cyber-news is a daily public RSS snapshot, not a live news search. Detection-effectiveness metrics still require the backend and are not recalculated on Pages.
 - Static content is public. Do not commit customer data, private indicators, credentials, access tokens or confidential detection logic.
 - The archived backend is not automatically deployed. A future backend requires a separately funded/free hosting decision, database migrations, auth, secret management, backups and security review.
 
