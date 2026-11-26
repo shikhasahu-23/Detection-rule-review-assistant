@@ -56,7 +56,8 @@ def classify(headline: str, summary: str) -> tuple[str, str]:
         impact = "Potential operational disruption, data exposure or recovery costs; validate affected organisations and scope in the source advisory."
     elif any(word in text for word in ("zero-day", "actively exploited", "remote code execution", "exploit")):
         impact = "Potential unauthorised access or code execution on affected systems; verify exposure and patch status."
-    elif any(word in text for word in ("malware", "infostealer", "spyware", "backdoor", "botnet")):\n        impact = "Potential endpoint compromise, data theft or unauthorised activity; review affected hosts, execution telemetry and network connections."\n    elif any(word in text for word in ("phishing", "credential", "identity")):
+    elif any(word in text for word in ("malware", "infostealer", "spyware", "backdoor", "botnet")):
+        impact = "Potential endpoint compromise, data theft or unauthorised activity; review affected hosts, execution telemetry and network connections."
         impact = "Potential credential theft or account compromise; review identity and email telemetry."
     elif any(word in text for word in ("vulnerability", "patch", "security update")):
         impact = "Potential exposure of affected products; confirm versions and apply vendor guidance."
