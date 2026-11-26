@@ -585,7 +585,7 @@ function App() {
           <div className="scoring-guide"><b>How severity and scores are identified</b>
             <span><strong>Severity</strong> NVD uses the CVSS baseSeverity label. CISA KEV currently uses High when known ransomware campaign use is flagged, otherwise Medium. URLhaus, OpenPhish, SSLBL and Feodo currently receive a High feed default. Custom CSV uses the supplied severity, or Unknown if omitted.</span>
             <span><strong>CVSS score</strong> The NVD CVSS baseScore (0–10) from CVSS v4.0, v3.1, v3.0 or v2 metrics. It is blank when no NVD score is available. It is not calculated by ThreatWeave.</span>
-            <span><strong>Confidence</strong> Current configured feed values: NVD 90, CISA KEV 100, URLhaus 95, OpenPhish 85, SSLBL 90, Feodo 95. Custom CSV defaults to 50 if omitted. These are source-specific defaults, not a calibrated or dynamically calculated probability.</span>
+            <span><strong>Confidence</strong> Current configured feed values: NVD 90, CISA KEV 100, URLhaus 95, OpenPhish 85, SSLBL 90, Feodo 95. Custom CSV defaults to 50 if omitted. These are source-specific defaults, not a calibrated probability. Where multiple feeds contribute to one indicator, the stored indicator confidence is not separately calibrated per source.</span>
             <span><strong>Important</strong> Severity, CVSS and confidence are different fields. Do not compare confidence percentages as though they were vulnerability scores.</span>
           </div>
           <div className="searchbar"><Search size={16}/><input value={query} onChange={e => setQuery(e.target.value)} placeholder="Search CVE or description…"/><button onClick={loadData} title="Refresh"><RefreshCw size={15}/></button></div>
@@ -727,7 +727,7 @@ function App() {
           </article>) : <p className="no-data">No generated queries for this use case yet. Select one or more languages and generate.</p>}
         </section>
       </> : page === "Rule library" ? <>
-        <section className="banner"><Database/><div><b>Detection rule library · one use case, versioned queries</b><p>Rules are grouped by detection use case and language. Select a version to compare older drafts without repeating the use-case name.</p></div><span>VERSIONED</span></section>
+        <section className="banner"><Database/><div><b>Detection rule library · one use case, versioned queries</b><p>Rules are grouped by detection use case and language. CVEs are grouped by NVD CWE weakness category. CWE describes vulnerability type; ATT&CK describes adversary behaviour, so IOC-only matches are not given artificial technique mappings.</p></div><span>VERSIONED</span></section>
         <section className="panel intel-panel">
           <div className="panelhead"><div><b>Rule library</b><p>Find a use case, then choose the language and version you need.</p></div><span>{libraryGroups.length} use cases · {filteredLibraryCandidates.length} versions</span></div>
           <div className="searchbar"><Search size={16}/><input value={libraryQuery} onChange={e=>{setLibraryQuery(e.target.value);setLibraryOffset(0);}} placeholder="Search rule names or query text…"/></div>
