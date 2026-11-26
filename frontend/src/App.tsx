@@ -471,9 +471,14 @@ function App() {
     const platformMatch = !libraryPlatform || candidate.platform === libraryPlatform;
     return tacticMatch && techniqueMatch && queryMatch && platformMatch;
   });
-  const libraryGroups = Object.values(filteredLibraryCandidates.reduce<Record<string, { key: string; title: string; candidates: RuleCandidate[] }>>((groups, candidate) => {
+  const libraryGroups = Object.values(filteredLibraryCandidates.reduce<Record<string, { key: string; title: string; subtitle: string; candidates: RuleCandidate[] }>>((groups, candidate) => {
     const key = candidate.intent_id + "::" + candidate.name;
-    if (!groups[key]) groups[key] = { key, title: intents.find(x => x.id === candidate.intent_id)?.title || candidate.name, candidates: [] };
+    const intent = intents.find(x => x.id === candidate.intent_id);
+    const rawTitle = intent?.title || candidate.name;
+    const iocBatch = rawTitle.match(/^ThreatWeave Active IOC Coverage:\\s*([a-z0-9_-]+):(\\d+)$/i);
+    const title = iocBatch ? `${iocBatch[1].toUpperCase()} IOC Coverage` : rawTitle;
+    const subtitle = iocBatch ? `Batch ${iocBatch[2]} · active ${iocBatch[1].toUpperCase()} indicators` : (intent?.description || candidate.name);
+    if (!groups[key]) groups[key] = { key, title, subtitle, candidates: [] };
     groups[key].candidates.push(candidate);
     return groups;
   }, {}));
@@ -697,16 +702,24 @@ function App() {
             <button onClick={()=>void loadRuleLibrary()}><RefreshCw size={15}/> Refresh</button>
           </div>
           {libraryGroups.map(group=><article className="library-usecase" key={group.key}>
-            <div className="library-usecase-head"><div><b>{group.title}</b><small>{group.candidates[0]?.name} · {group.candidates.length} language/version records</small></div><span>USE CASE</span></div>
+            <div className="library-usecase-head"><div><b>{group.title}</b><small>{group.subtitle} · {group.candidates.length} language/version records</small></div><span>{group.subtitle.startsWith("Batch ")?"IOC BATCH":"USE CASE"}</span></div>
             <div className="library-platform-grid">{Object.entries(group.candidates.reduce<Record<string, RuleCandidate[]>>((byPlatform, candidate) => { (byPlatform[candidate.platform] ||= []).push(candidate); return byPlatform; }, {})).map(([platform, versions])=>{
               const ordered=[...versions].sort((a,b)=>b.version-a.version);
               const selectionKey=group.key+"::"+platform;
               const selected=ordered.find(item=>item.version===libraryVersionSelection[selectionKey])||ordered[0];
+              const selectedIntent=intents.find(x=>x.id===selected.intent_id);
+              const mappedTechniques=(selectedIntent?.attack_techniques||[]).map(id=>({id,detail:attackTechniques.find(t=>t.external_id===id)}));
+              const mappedTactics=[...new Set(mappedTechniques.flatMap(item=>item.detail?.tactics||[]))];
               const platformName=platform==="sentinel"?"Microsoft Sentinel KQL":platform==="chronicle"?"Google SecOps YARA-L 2.0":platform==="sigma"?"Sigma YAML":platform==="crowdstrike"?"CrowdStrike":"Splunk SPL";
               return <section className={"library-platform language-"+platform} key={platform}>
                 <div className="library-platform-head"><b>{platformName}</b><label>VERSION <select value={selected.version} onChange={e=>setLibraryVersionSelection(old=>({...old,[selectionKey]:Number(e.target.value)}))}>{ordered.map(version=><option key={version.id} value={version.version}>v{version.version}{version===ordered[0]?" · Latest":""}</option>)}</select></label></div>
                 <div className="library-platform-meta"><span>{selected.generator==="ioc-intel"?"Threat-intel maintained":selected.generator}</span><span>{selected.validation_status}</span></div>
-                <pre>{selected.query}</pre><button className="copy-query" onClick={()=>navigator.clipboard?.writeText(selected.query).then(()=>setNotice("Query copied to clipboard."))}>Copy {platformName} query</button>
+                <pre>{selected.query}</pre>
+                <button className="copy-query" onClick={()=>navigator.clipboard?.writeText(selected.query).then(()=>setNotice("Query copied to clipboard."))}>Copy {platformName} query</button>
+                <div className="rule-attack-context">
+                  <div><b>MITRE tactics</b><p>{mappedTactics.length?mappedTactics.map(t=>t.replaceAll("_"," ")).join(" · "):"Not mapped"}</p></div>
+                  <div><b>MITRE techniques</b><p>{mappedTechniques.length?mappedTechniques.map(item=>`${item.id}${item.detail? ` · ${item.detail.name}`:""}`).join(" · "):"Not mapped — this IOC coverage rule matches indicator values rather than a specific attacker behaviour."}</p></div>
+                </div>
               </section>;
             })}</div>
             <small className="muted">ATT&amp;CK: {(intents.find(x=>x.id===group.candidates[0]?.intent_id)?.attack_techniques||[]).join(", ")||"Not mapped"}</small>
