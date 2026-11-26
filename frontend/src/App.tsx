@@ -14,7 +14,7 @@ const readData = async (name: string) => {
 };
 const readAllIndicators = async () => {
   const [live, ...history] = await Promise.all([
-    readData("indicators.json"),
+    readData("indicators.json").catch(() => []),
     ...Array.from({ length: 11 }, (_, index) => readData(`indicators-history-${String(index + 1).padStart(2, "0")}.json`)),
   ]);
   const merged = new Map<string, any>();
@@ -442,7 +442,7 @@ function App() {
         }
         const matchedTechniques = [...new Set((intent.attack_techniques || []).map((id: string) => id.toUpperCase()).filter((id: string) => /^T\\d{4}(?:\\.\\d{3})?$/.test(id)))];
         const indicatorsForIntent = [...matches.values()];
-        if (!indicatorsForIntent.length && !matchedTechniques.length) continue;
+        if (!indicatorsForIntent.length) continue;
         const matchedCves = [...new Set(indicatorsForIntent.filter(item => item.indicator_type.toLowerCase() === "cve" || /^CVE-\\d{4}-\\d+$/i.test(item.value)).map(item => item.value))];
         const evidenceCount = evidence.length || indicatorsForIntent.reduce((sum, item) => sum + (Array.isArray((item as any).sources) ? (item as any).sources.length : 0), 0);
         results.push({
@@ -702,7 +702,7 @@ function App() {
       <div className="notice"><AlertTriangle size={16}/> Portfolio snapshot. Public CISA KEV and MITRE ATT&amp;CK data refresh daily at 08:00 IST. Detection intents and query drafts can be saved locally in this browser; they are not synced across devices. Shared storage, live ingestion and server-side testing require a backend.</div>\n      {error && <div className="notice error"><AlertTriangle size={16}/>{error}<button onClick={loadData}>Retry</button></div>}
       {notice && <div className="notice success"><CheckCircle2 size={16}/>{notice}</div>}
       {page === "Cyber news" ? <>
-        <section className="banner"><Newspaper/><div><b>Cybersecurity headlines from trusted public sources</b><p>Short summaries, practical impact and severity labels to help you scan what matters.</p></div><span>NOT INCLUDED</span></section>
+        <section className="banner"><Newspaper/><div><b>Cybersecurity headlines from trusted public sources</b><p>Short summaries, practical impact and severity labels to help you scan what matters.</p></div><span>RSS SNAPSHOT</span></section>
         <section className="panel intel-panel">
           <div className="panelhead"><div><b>Latest cyber news</b><p>{newsFetchedAt ? `Fetched ${new Date(newsFetchedAt).toLocaleString()}` : "Latest published RSS snapshot · refreshed daily by GitHub Actions."}</p></div><a className="workflow-run-button" href="https://github.com/shikhasahu-23/ThreatWeave/actions/workflows/refresh-static-intelligence.yml" target="_blank" rel="noreferrer"><RefreshCw size={15}/>Refresh news<ArrowUpRight size={14}/></a></div>
           <div className="library-filters">
@@ -854,7 +854,7 @@ function App() {
             <div className="table-wrap"><table><thead><tr><th>INDICATOR</th><th>SEVERITY</th><th>CONFIDENCE</th><th>FRESHNESS</th><th>EVIDENCE</th></tr></thead><tbody>{item.indicators.map(ind=><tr key={ind.indicator_id}><td><b>{ind.value}</b><small>{ind.indicator_type.toUpperCase()}</small></td><td>{ind.severity}</td><td>{ind.confidence}%</td><td>{ind.freshness}</td><td>{ind.evidence_count}</td></tr>)}</tbody></table></div>
             <small className="muted">{item.evidence_count} total source evidence records · Association: explicit reference</small>
           </article>)}
-          {!loadingOpportunities && opportunities.length===0&&<p className="no-data">No evidence-backed detection opportunities yet. Import or sync intelligence and create detection intents with matching ATT&amp;CK IDs or CVE evidence references.</p>}
+          {!loadingOpportunities && opportunities.length===0&&<p className="no-data">No exact intelligence matches in this snapshot. Opportunities appear only when a detection intent contains a CVE or indicator reference that matches a published indicator; ATT&amp;CK mappings are shown when explicitly assigned.</p>}
         </section>
       </> : page === "Rule generator" ? <>
         <section className="banner"><Sparkles/><div><b>Generate queries for your SIEMs</b><p>Choose a detection use case and generate one query per selected language. The current generator supports four formats: Splunk SPL, Sentinel KQL, Google SecOps YARA-L and Sigma YAML.</p></div><span>4 FORMATS</span></section>
