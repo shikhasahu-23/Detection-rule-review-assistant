@@ -75,7 +75,7 @@ def enrich(headline: str, summary: str) -> dict:
     text = f"{headline}. {summary}"
     lower = text.lower()
     cves = sorted(set(re.findall(r"CVE-\d{4}-\d{4,}", text, re.I)))
-    actor_pattern = r"\b(?:APT\s?\d{1,3}|FIN\d{1,3}|Lazarus Group|Sandworm|Volt Typhoon|Scattered Spider|Cl0p|LockBit|Akira|Rhysida|Qilin|BlackCat|North Korea)\b"
+    actor_pattern = r"\b(?:APT\s?\d{1,3}|FIN\d{1,3}|Lazarus Group|Sandworm|Volt Typhoon|Scattered Spider|Cl0p|LockBit|Akira|Rhysida|Qilin|BlackCat)\b"
     actors = sorted(set(re.findall(actor_pattern, text, re.I)))
     malware_terms = ("Remus", "PolinRider", "SYS01", "SYS010", "LockBit", "Akira", "Qilin", "BlackCat")
     named_tools = sorted({name for name in malware_terms if re.search(r"\b" + re.escape(name) + r"\b", text, re.I)})
