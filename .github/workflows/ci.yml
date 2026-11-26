@@ -33,3 +33,25 @@ jobs:
           node-version: "22"
       - run: npm install
       - run: npm run build
+
+  static-intelligence:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Compile public data refresh scripts
+        run: python -m py_compile scripts/refresh_static_intelligence.py scripts/refresh_public_news.py
+      - name: Validate committed static datasets
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          root = Path("frontend/public/data")
+          for name in ("summary.json", "indicators.json", "feeds.json", "attack-techniques.json", "cyber-news.json", "detection-intents.json"):
+              json.loads((root / name).read_text(encoding="utf-8"))
+          news = json.loads((root / "cyber-news.json").read_text(encoding="utf-8"))
+          assert isinstance(news.get("items"), list)
+          print("Static datasets and cyber-news schema are valid")
+          PY
