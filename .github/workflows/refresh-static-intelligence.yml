@@ -95,3 +95,12 @@ jobs:
           path: frontend/dist
       - id: deployment
         uses: actions/deploy-pages@v4
+      - name: Smoke test published portfolio and refreshed datasets
+        run: |
+          set -euo pipefail
+          BASE="https://shikhasahu-23.github.io/ThreatWeave"
+          for path in "/" "/data/summary.json" "/data/indicators.json" "/data/feeds.json" "/data/attack-techniques.json"; do
+            curl --fail --silent --show-error --retry 5 --retry-delay 5 "${BASE}${path}" -o /tmp/published
+            test -s /tmp/published
+            echo "PASS ${path}"
+          done
