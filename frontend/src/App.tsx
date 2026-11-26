@@ -767,16 +767,16 @@ function App() {
               <h3><a href={item.url} target="_blank" rel="noreferrer">{item.headline}</a></h3>
               <div className="news-details"><div><label>WHAT HAPPENED</label><p>{item.summary}</p></div><div><label>WHY IT MATTERS</label><p>{item.impact}</p></div></div>
               <div className="news-analysis">
-                <div className="news-analysis-heading"><b>Analyst breakdown</b><small>Extracted from the publisher headline and RSS description</small></div>
+                <div className="news-analysis-heading"><b>Analyst takeaways</b><small>Practical reading of the reported activity</small></div>
                 <div className="news-facts">
-                  <div><label>EVENT TYPE</label><b>{item.event_type || "Security development"}</b></div>
-                  <div><label>ATTACK VECTOR / METHOD</label><b>{item.attack_vectors?.length ? item.attack_vectors.join(" · ") : "Not clear from source snippet"}</b></div>
-                  <div><label>RELATED CVEs</label><b>{item.related_cves?.length ? item.related_cves.join(" · ") : "None identified in source snippet"}</b></div>
-                  <div><label>THREAT ACTORS</label><b>{item.mentioned_threat_actors?.length ? item.mentioned_threat_actors.join(" · ") : "Not attributed in source snippet"}</b></div>
-                  <div><label>MALWARE / TOOLING</label><b>{item.malware_or_tooling?.length ? item.malware_or_tooling.join(" · ") : "Not identified in source snippet"}</b></div>
+                  <div><label>WHAT TYPE OF EVENT</label><b>{item.event_type || "Cybersecurity report"}</b></div>
+                  {item.attack_vectors?.length ? <div><label>REPORTED METHOD</label><b>{item.attack_vectors.join(" · ")}</b></div> : null}
+                  {item.related_cves?.length ? <div><label>CVEs NAMED IN THE REPORT</label><b>{item.related_cves.join(" · ")}</b></div> : null}
+                  {item.mentioned_threat_actors?.length ? <div><label>ACTOR NAMED IN THE REPORT</label><b>{item.mentioned_threat_actors.join(" · ")}</b></div> : null}
+                  {item.malware_or_tooling?.length ? <div><label>MALWARE / TOOLING TERMS</label><b>{item.malware_or_tooling.join(" · ")}</b></div> : null}
                 </div>
-                <div className="news-actions"><label>WHAT DEFENDERS SHOULD DO</label><ul>{(item.defender_actions?.length ? item.defender_actions : ["Open the original report and assess whether your environment is affected"]).map((action,index)=><li key={index}>{action}</li>)}</ul></div>
-                <p className="news-evidence-note">{item.analysis_note || "This is a triage summary. Confirm technical details and attribution in the original publisher report. ATT&CK mappings are not inferred from headlines alone."}</p>
+                {item.defender_actions?.length ? <div className="news-actions"><label>SOC FOLLOW-UP</label><ul>{item.defender_actions.map((action,index)=><li key={index}>{action}</li>)}</ul></div> : null}
+                <p className="news-evidence-note">Only details visible in the publisher headline or feed description are extracted here. Open the source report for affected versions, technical indicators and a complete incident timeline.</p>
               </div>
               <details className="news-investigation">
                 <summary><span><b>Incident investigation</b><small>Explore the reported activity, evidence and SOC follow-up</small></span><span className="investigation-open">Open investigation <ArrowUpRight size={14}/></span></summary>
@@ -931,9 +931,9 @@ function App() {
           <div className="panelhead"><div><b>Detection opportunities</b><p>Each use case explains which evidence connected it to each intelligence indicator.</p></div><button onClick={()=>void loadOpportunities()} disabled={loadingOpportunities}><RefreshCw size={15} className={loadingOpportunities?"spin":""}/> Refresh</button></div>
           {opportunities.map(item=><article className="candidate-card" key={item.intent_id}>
             <div className="candidate-title"><div><b>{item.title}</b><small>{item.severity.toUpperCase()} · {item.status.toUpperCase()} · {item.target_platforms.map(p=>p.toUpperCase()).join(", ")}</small></div><span>{item.indicator_count} indicators</span></div>
-            <div className="correlation-explanation"><b>Why this use case is linked</b><p>The detection intent contains an explicit evidence reference that resolves to the indicator records listed below. This is a direct evidence match, not a similarity score.</p><div className="correlation-path"><span>{item.title}</span><i>exact saved evidence reference / ID</i><span>{item.indicator_count} matched indicator{item.indicator_count===1?"":"s"}</span></div></div>
+            <div className="correlation-explanation"><b>Why these indicators are grouped</b><p>{item.rationale}</p><div className="correlation-path"><span>{item.title}</span><i>shared source attribute / exact evidence</i><span>{item.indicator_count} related indicator{item.indicator_count===1?"":"s"}</span></div></div>
             {item.matched_techniques.length>0&&<div className="correlation-context"><b>ATT&amp;CK context · separately assigned</b><p>These technique IDs were attached to the detection intent. They provide behavioural context only; this page does not claim that the matched indicators independently prove these techniques.</p><div className="library-filters">{item.matched_techniques.map(id=><span className="type-pill" key={id}>ATT&amp;CK {id}</span>)}</div></div>}
-            {item.matched_cves.length>0&&<div className="correlation-context"><b>Related CVEs · shared vulnerability context</b><p>These CVEs are grouped only when source metadata confirms a common affected vendor/product or CWE weakness. Otherwise each CVE stays separate.</p><div className="library-filters">{item.matched_cves.map(id=><span className="type-pill" key={id}>{id}</span>)}</div></div>}
+            {item.matched_cves.length>0&&<div className="correlation-context"><b>CVEs included in this relationship</b><p>Each identifier below is an individual vulnerability record. The grouping reason above states the exact shared vendor/product or weakness attribute used; CVEs without a verified shared attribute are kept separate.</p><div className="library-filters">{item.matched_cves.map(id=><span className="type-pill" key={id}>{id}</span>)}</div></div>}
             <div className="table-wrap"><table><thead><tr><th>INDICATOR</th><th>WHY IT MATCHED</th><th>SEVERITY</th><th>CONFIDENCE</th><th>FRESHNESS</th><th>SOURCE COUNT</th></tr></thead><tbody>{item.indicators.map(ind=><tr key={ind.indicator_id}><td><b>{ind.value}</b><small>{ind.indicator_type.toUpperCase()}</small></td><td>{ind.match_basis.join(" · ") || "Explicit evidence match"}</td><td>{ind.severity}</td><td>{ind.confidence}%</td><td>{ind.freshness}</td><td>{ind.evidence_count}</td></tr>)}</tbody></table></div>
             <small className="muted">{item.evidence_count} total intent evidence records · Direct association is based on exact reference / indicator ID matching. Source count is shown per indicator.</small>
           </article>)}
