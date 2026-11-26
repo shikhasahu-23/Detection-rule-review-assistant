@@ -78,7 +78,7 @@ def get_cyber_news(limit: int = 60) -> dict:
                     try:
                         published = datetime.fromisoformat(published_raw)
                     except (TypeError, ValueError):
-                        published = datetime.now(timezone.utc)
+                        published = datetime.now(UTC)
                 if not title or not link:
                     continue
                 combined = f"{title}. {description}"
@@ -94,4 +94,4 @@ def get_cyber_news(limit: int = 60) -> dict:
     unique = {story["url"]: story for story in stories}
     ordered = sorted(unique.values(), key=lambda story: story["published_at"], reverse=True)
     return {"items": ordered[:limit], "sources_checked": len(NEWS_FEEDS), "sources_failed": feed_errors,
-            "fetched_at": datetime.now(timezone.utc).isoformat()}
+            "fetched_at": datetime.now(UTC).isoformat()}
