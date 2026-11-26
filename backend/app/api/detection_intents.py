@@ -10,7 +10,7 @@ from app.models.detection import DetectionIntent
 from app.schemas.detection import DetectionIntentCreate, DetectionIntentOut
 
 router = APIRouter(prefix="/api/v1/detection-intents", tags=["detection engineering"])
-DbSession = Annotated[Session, Depends(get_db)]
+DbSession = Annotated[Session, Depends(get_db, scope="function")]
 
 
 @router.post("", response_model=DetectionIntentOut, status_code=status.HTTP_201_CREATED)
