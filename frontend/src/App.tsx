@@ -73,7 +73,7 @@ type PipelineRun = { run_id: string; status: string; trigger: string; indicators
 type ThreatNode = { id: string; entity_type: string; external_id: string; name: string; description?: string; impact: string | null; source_name: string; source_reference: string; source_url: string | null; revoked: boolean; deprecated: boolean };
 type ThreatEdge = { id: string; source: string; target: string; relationship_type: string; assertion_status: string; source_name: string; source_reference: string; source_url: string | null };
 type ThreatGraph = { nodes: ThreatNode[]; edges: ThreatEdge[]; truncated: boolean };
-type CyberNews = { id:string; headline:string; summary:string; impact:string; severity:string; source:string; url:string; published_at:string; event_type?:string; related_cves?:string[]; mentioned_threat_actors?:string[]; malware_or_tooling?:string[]; attack_vectors?:string[]; defender_actions?:string[]; analysis_note?:string };
+type CyberNews = { id:string; headline:string; summary:string; impact:string; severity:string; source:string; url:string; published_at:string; event_type?:string; related_cves?:string[]; mentioned_threat_actors?:string[]; malware_or_tooling?:string[]; attack_vectors?:string[]; affected_surfaces?:string[]; analyst_takeaway?:string; defender_actions?:string[]; analysis_note?:string };
 type Opportunity = { intent_id: string; title: string; severity: string; status: string; target_platforms: string[]; association_type: string; indicators: { indicator_id: string; indicator_type: string; value: string; confidence: number; severity: string; freshness: string; evidence_count: number; match_basis: string[]; context_detail: string }[]; matched_techniques: string[]; matched_cves: string[]; indicator_count: number; evidence_count: number; rationale: string };
 
 const LOCAL_INTENTS_KEY = "threatweave:local-detection-intents:v1";
@@ -447,14 +447,14 @@ function App() {
             matchBasis.set(indicator.id, [...(matchBasis.get(indicator.id) || []), `Exact indicator ID: ${id}`]);
           }
         }
-        const matchedTechniques = [...new Set((intent.attack_techniques || []).map((id: string) => id.toUpperCase()).filter((id: string) => /^T\\d{4}(?:\\.\\d{3})?$/.test(id)))];
+        const matchedTechniques = [...new Set((intent.attack_techniques || []).map((id: string) => id.toUpperCase()).filter((id: string) => /^T\d{4}(?:\\.\d{3})?$/.test(id)))];
         const indicatorsForIntent = [...matches.values()];
         if (!indicatorsForIntent.length) continue;
-        const matchedCves = [...new Set(indicatorsForIntent.filter(item => item.indicator_type.toLowerCase() === "cve" || /^CVE-\\d{4}-\\d+$/i.test(item.value)).map(item => item.value))];
+        const matchedCves = [...new Set(indicatorsForIntent.filter(item => item.indicator_type.toLowerCase() === "cve" || /^CVE-\d{4}-\d+$/i.test(item.value)).map(item => item.value))];
         const evidenceCount = evidence.length || indicatorsForIntent.reduce((sum, item) => sum + (Array.isArray((item as any).sources) ? (item as any).sources.length : 0), 0);
-        const isAutoCveBatch = /^ThreatWeave Active IOC Coverage:\\s*cve:\\d+$/i.test(intent.title);
+        const isAutoCveBatch = /^ThreatWeave Active IOC Coverage:\s*cve:\d+$/i.test(intent.title);
         const makeOpportunity = (groupKey: string, title: string, groupIndicators: Indicator[], groupReason: string) => {
-          const groupCves = [...new Set(groupIndicators.filter(item => item.indicator_type.toLowerCase() === "cve" || /^CVE-\\d{4}-\\d+$/i.test(item.value)).map(item => item.value))];
+          const groupCves = [...new Set(groupIndicators.filter(item => item.indicator_type.toLowerCase() === "cve" || /^CVE-\d{4}-\d+$/i.test(item.value)).map(item => item.value))];
           results.push({
             intent_id: `${intent.id}:${groupKey}`, title, severity: intent.severity || "unknown", status: intent.status || "active",
             target_platforms: intent.target_platforms || [], association_type: "explicit_reference",
@@ -475,7 +475,7 @@ function App() {
             const meta = item as any;
             const vendor = String(meta.vendor_project || "").trim();
             const product = String(meta.product || "").trim();
-            const cwe = (Array.isArray(meta.tags) ? meta.tags : []).map((tag: string) => String(tag).match(/CWE[-_ ]?(\\d+)/i)?.[1]).find(Boolean);
+            const cwe = (Array.isArray(meta.tags) ? meta.tags : []).map((tag: string) => String(tag).match(/CWE[-_ ]?(\d+)/i)?.[1]).find(Boolean);
             let key = "";
             let title = "";
             let reason = "";
@@ -771,6 +771,7 @@ function App() {
                 <div className="news-analysis-heading"><b>Analyst takeaways</b><small>Practical reading of the reported activity</small></div>
                 <div className="news-facts">
                   <div><label>WHAT TYPE OF EVENT</label><b>{item.event_type || "Cybersecurity report"}</b></div>
+                  {item.affected_surfaces?.length ? <div><label>AFFECTED TECHNOLOGY / SURFACE</label><b>{item.affected_surfaces.join(" · ")}</b></div> : null}
                   {item.attack_vectors?.length ? <div><label>REPORTED METHOD</label><b>{item.attack_vectors.join(" · ")}</b></div> : null}
                   {item.related_cves?.length ? <div><label>CVEs NAMED IN THE REPORT</label><b>{item.related_cves.join(" · ")}</b></div> : null}
                   {item.mentioned_threat_actors?.length ? <div><label>ACTOR NAMED IN THE REPORT</label><b>{item.mentioned_threat_actors.join(" · ")}</b></div> : null}
@@ -1002,7 +1003,7 @@ function App() {
                   const selectedIntent=intents.find(x=>x.id===selected.intent_id);
                   const mappedTechniques=(selectedIntent?.attack_techniques||[]).map(id=>({id,detail:attackTechniques.find(t=>t.external_id===id)}));
                   const isIoc=selected.generator==="ioc-intel";
-                  const batchKind=(selectedIntent?.title||"").match(/^ThreatWeave Active IOC Coverage:\\s*([a-z0-9_-]+):/i)?.[1]?.toLowerCase()||"";
+                  const batchKind=(selectedIntent?.title||"").match(/^ThreatWeave Active IOC Coverage:\s*([a-z0-9_-]+):/i)?.[1]?.toLowerCase()||"";
                   const contextualExploitTechnique=isIoc&&batchKind.startsWith("cve")?attackTechniques.find(t=>t.external_id==="T1190"):undefined;
                   const effectiveMappedTechniques=mappedTechniques.length?mappedTechniques:contextualExploitTechnique?[{id:"T1190",detail:contextualExploitTechnique}]:[];
                   const mappedTactics=[...new Set(effectiveMappedTechniques.flatMap(item=>item.detail?.tactics||[]))];
