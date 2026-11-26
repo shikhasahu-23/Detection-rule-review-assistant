@@ -47,8 +47,8 @@ const localApi = async (path: string, init?: RequestInit): Promise<Response> => 
   else if (path.includes("/intelligence/threat-graph")) {
     const graph = await readData("threat-graph.json");
     data = { nodes: graph.nodes || [], edges: (graph.edges || []).map((edge: any) => ({ ...edge, source: edge.source_entity_id, target: edge.target_entity_id })), truncated: false };
-  } else if (path.includes("/intelligence/detection-opportunities")) data = [];
-  else if (path.includes("/intelligence/cyber-news")) data = [];
+  } else if (path.includes("/intelligence/detection-opportunities")) data = await readData("detection-opportunities.json");
+  else if (path.includes("/intelligence/cyber-news")) data = await readData("cyber-news.json");
   else if (path.includes("/detection-effectiveness")) data = null;
   else if (path.includes("/rules/") && path.includes("/test-runs")) data = [];
   else if (path.includes("/detection-intents/") && path.includes("/candidates")) {
