@@ -21,7 +21,7 @@ const localApi = async (path: string, init?: RequestInit): Promise<Response> => 
   else if (path.includes("/intelligence/indicators")) data = await readData("indicators.json");
   else if (path.includes("/intelligence/feeds")) data = await readData("feeds.json");
   else if (path.includes("/intelligence/attack-techniques")) data = await readData("attack-techniques.json");
-  else if (path.includes("/detection-intents")) data = await readData("detection-intents.json");
+  else if (path.includes("/detection-intents") && !path.includes("/candidates")) data = await readData("detection-intents.json");
   else if (path.includes("/intelligence/pipeline/runs")) data = await readData("pipeline-runs.json");
   else if (path.includes("/intelligence/threat-graph")) {
     const graph = await readData("threat-graph.json");
