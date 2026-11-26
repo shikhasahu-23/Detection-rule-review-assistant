@@ -46,7 +46,7 @@ class IndicatorOut(BaseModel):
 
 
 @router.post("/feeds/urlhaus/sync")
-def sync_urlhaus_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
+def sync_urlhaus_feed(db: Annotated[Session, Depends(get_db, scope="function")]) -> dict:
     try:
         return sync_public_feed(db, "urlhaus")
     except (ValueError, TypeError) as exc:
@@ -56,7 +56,7 @@ def sync_urlhaus_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
 
 
 @router.post("/feeds/feodo/sync")
-def sync_feodo_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
+def sync_feodo_feed(db: Annotated[Session, Depends(get_db, scope="function")]) -> dict:
     try:
         return sync_public_feed(db, "feodo")
     except (ValueError, TypeError) as exc:
@@ -66,7 +66,7 @@ def sync_feodo_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
 
 
 @router.post("/feeds/openphish/sync")
-def sync_openphish_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
+def sync_openphish_feed(db: Annotated[Session, Depends(get_db, scope="function")]) -> dict:
     try:
         return sync_public_feed(db, "openphish")
     except (ValueError, TypeError) as exc:
@@ -76,7 +76,7 @@ def sync_openphish_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
 
 
 @router.post("/feeds/sslbl/sync")
-def sync_sslbl_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
+def sync_sslbl_feed(db: Annotated[Session, Depends(get_db, scope="function")]) -> dict:
     try:
         return sync_public_feed(db, "sslbl")
     except (ValueError, TypeError) as exc:
@@ -92,7 +92,7 @@ def list_cyber_news(limit: int = Query(default=60, ge=1, le=100)) -> dict:
 
 
 @router.get("/summary")
-def intelligence_summary(db: Annotated[Session, Depends(get_db)]) -> dict:
+def intelligence_summary(db: Annotated[Session, Depends(get_db, scope="function")]) -> dict:
     return {
         "indicators_total": db.scalar(select(func.count()).select_from(Indicator)) or 0,
         "active_indicators": db.scalar(select(func.count()).select_from(Indicator).where(Indicator.status == "active")) or 0,
@@ -103,7 +103,7 @@ def intelligence_summary(db: Annotated[Session, Depends(get_db)]) -> dict:
 
 @router.get("/indicators", response_model=list[IndicatorOut])
 def list_indicators(
-    db: Annotated[Session, Depends(get_db)],
+    db: Annotated[Session, Depends(get_db, scope="function")],
     q: str | None = Query(default=None, max_length=256),
     indicator_type: str | None = Query(default=None, max_length=32),
     limit: int = Query(default=100, ge=1, le=500),
@@ -152,7 +152,7 @@ def list_indicators(
 
 
 @router.get("/indicators/{indicator_id}/evidence")
-def indicator_evidence(indicator_id: UUID, db: Annotated[Session, Depends(get_db)]) -> list[dict]:
+def indicator_evidence(indicator_id: UUID, db: Annotated[Session, Depends(get_db, scope="function")]) -> list[dict]:
     if db.get(Indicator, indicator_id) is None:
         raise HTTPException(status_code=404, detail="Indicator not found")
     rows = db.scalars(select(SourceEvidence).where(SourceEvidence.indicator_id == indicator_id)).all()
@@ -162,7 +162,7 @@ def indicator_evidence(indicator_id: UUID, db: Annotated[Session, Depends(get_db
 
 
 @router.get("/feeds")
-def list_feeds(db: Annotated[Session, Depends(get_db)]) -> list[dict]:
+def list_feeds(db: Annotated[Session, Depends(get_db, scope="function")]) -> list[dict]:
     latest = db.scalars(select(FeedRun).order_by(desc(FeedRun.started_at)).limit(50)).all()
     by_source: dict[str, dict] = {}
     for run in latest:
@@ -176,7 +176,7 @@ def list_feeds(db: Annotated[Session, Depends(get_db)]) -> list[dict]:
 
 
 @router.post("/feeds/cisa-kev/sync")
-def sync_cisa_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
+def sync_cisa_feed(db: Annotated[Session, Depends(get_db, scope="function")]) -> dict:
     try:
         return sync_cisa_kev(db)
     except (ValueError, TypeError) as exc:
@@ -186,7 +186,7 @@ def sync_cisa_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
 
 
 @router.post("/feeds/nvd/sync")
-def sync_nvd_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
+def sync_nvd_feed(db: Annotated[Session, Depends(get_db, scope="function")]) -> dict:
     try:
         return sync_nvd_cves(db)
     except (ValueError, TypeError) as exc:
@@ -204,7 +204,7 @@ def _latest_run(db: Session) -> dict | None:
 
 
 @router.post("/feeds/mitre-attack/sync")
-def sync_mitre_attack_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
+def sync_mitre_attack_feed(db: Annotated[Session, Depends(get_db, scope="function")]) -> dict:
     try:
         return sync_attack_catalog(db)
     except (ValueError, TypeError) as exc:
@@ -215,7 +215,7 @@ def sync_mitre_attack_feed(db: Annotated[Session, Depends(get_db)]) -> dict:
 
 @router.get("/attack-techniques")
 def list_attack_techniques(
-    db: Annotated[Session, Depends(get_db)],
+    db: Annotated[Session, Depends(get_db, scope="function")],
     q: str | None = Query(default=None, max_length=200),
     platform: str | None = Query(default=None, max_length=100),
     tactic: str | None = Query(default=None, max_length=100),
@@ -243,7 +243,7 @@ def list_attack_techniques(
 
 
 @router.post("/feeds/custom/csv")
-async def import_custom_csv(request: Request, db: Annotated[Session, Depends(get_db)]) -> dict:
+async def import_custom_csv(request: Request, db: Annotated[Session, Depends(get_db, scope="function")]) -> dict:
     if request.headers.get("content-type", "").split(";")[0].strip().lower() != "text/csv":
         raise HTTPException(status_code=415, detail="Content-Type must be text/csv")
     body = bytearray()
@@ -266,7 +266,7 @@ async def import_custom_csv(request: Request, db: Annotated[Session, Depends(get
 @router.get("/indicators/{indicator_id}/enrichment")
 def get_indicator_enrichment(
     indicator_id: UUID,
-    db: Annotated[Session, Depends(get_db)],
+    db: Annotated[Session, Depends(get_db, scope="function")],
 ) -> dict:
     result = enrich_indicator(db, indicator_id)
     if result is None:
@@ -276,7 +276,7 @@ def get_indicator_enrichment(
 
 @router.get("/detection-opportunities")
 def list_detection_opportunities(
-    db: Annotated[Session, Depends(get_db)],
+    db: Annotated[Session, Depends(get_db, scope="function")],
     limit: int = Query(default=100, ge=1, le=500),
 ) -> list[dict]:
     return detection_opportunities(db, limit=limit)
@@ -285,7 +285,7 @@ def list_detection_opportunities(
 @router.post("/feeds/custom/stix")
 def import_custom_stix(
     payload: STIXImportRequest,
-    db: Annotated[Session, Depends(get_db)],
+    db: Annotated[Session, Depends(get_db, scope="function")],
 ) -> dict:
     try:
         return import_stix_bundle(db, payload.bundle, source_name=payload.source_name)
@@ -297,7 +297,7 @@ def import_custom_stix(
 
 @router.get("/threat-graph/entities")
 def list_threat_entities(
-    db: Annotated[Session, Depends(get_db)],
+    db: Annotated[Session, Depends(get_db, scope="function")],
     q: str | None = Query(default=None, max_length=256),
     entity_type: str | None = Query(default=None, max_length=32),
     limit: int = Query(default=100, ge=1, le=500),
@@ -328,7 +328,7 @@ def list_threat_entities(
 
 @router.get("/threat-graph/relationships")
 def list_threat_relationships(
-    db: Annotated[Session, Depends(get_db)],
+    db: Annotated[Session, Depends(get_db, scope="function")],
     entity_id: UUID | None = None,
     relationship_type: str | None = Query(default=None, max_length=100),
     limit: int = Query(default=200, ge=1, le=1000),
@@ -368,7 +368,7 @@ def list_threat_relationships(
 
 @router.get("/threat-graph")
 def get_threat_graph(
-    db: Annotated[Session, Depends(get_db)],
+    db: Annotated[Session, Depends(get_db, scope="function")],
     limit: int = Query(default=200, ge=1, le=500),
 ) -> dict:
     entities = db.scalars(select(ThreatEntity).order_by(ThreatEntity.name).limit(limit)).all()
@@ -403,7 +403,7 @@ def get_threat_graph(
 @router.get("/threat-graph/entities/{entity_id}/evidence")
 def threat_entity_evidence(
     entity_id: UUID,
-    db: Annotated[Session, Depends(get_db)],
+    db: Annotated[Session, Depends(get_db, scope="function")],
 ) -> list[dict]:
     if db.get(ThreatEntity, entity_id) is None:
         raise HTTPException(status_code=404, detail="Threat entity not found")
@@ -436,7 +436,7 @@ def enqueue_intelligence_pipeline(background_tasks: BackgroundTasks) -> dict:
 
 @router.get("/pipeline/runs")
 def list_pipeline_runs(
-    db: Annotated[Session, Depends(get_db)],
+    db: Annotated[Session, Depends(get_db, scope="function")],
     limit: int = Query(default=20, ge=1, le=100),
 ) -> list[dict]:
     rows = db.scalars(
@@ -456,7 +456,7 @@ def list_pipeline_runs(
 @router.get("/pipeline/runs/{run_id}")
 def get_pipeline_run(
     run_id: UUID,
-    db: Annotated[Session, Depends(get_db)],
+    db: Annotated[Session, Depends(get_db, scope="function")],
 ) -> dict:
     row = db.get(PipelineRun, run_id)
     if row is None:
