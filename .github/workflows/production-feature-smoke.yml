@@ -1,8 +1,8 @@
-name: Static portfolio smoke tests
+name: Static portfolio data checks
 
 on:
   push:
-    branches: [main, migration/github-only]
+    branches: [main]
     paths:
       - "frontend/**"
       - "scripts/refresh_static_intelligence.py"
