@@ -282,6 +282,7 @@ def list_threat_entities(
         "id": str(row.id), "entity_type": row.entity_type,
         "external_id": row.external_id, "name": row.name,
         "description": row.description, "confidence": row.confidence,
+        "severity": row.severity, "impact": row.impact,
         "source_name": row.source_name, "source_reference": row.source_reference,
         "source_url": row.source_url, "revoked": row.revoked,
         "deprecated": row.deprecated, "first_seen": row.first_seen,
@@ -346,7 +347,8 @@ def get_threat_graph(
         "nodes": [{
             "id": str(row.id), "entity_type": row.entity_type,
             "external_id": row.external_id, "name": row.name, "description": row.description,
-            "confidence": row.confidence, "source_name": row.source_name,
+            "confidence": row.confidence, "severity": row.severity, "impact": row.impact,
+            "source_name": row.source_name,
             "source_reference": row.source_reference, "source_url": row.source_url,
             "revoked": row.revoked, "deprecated": row.deprecated,
         } for row in entities],
