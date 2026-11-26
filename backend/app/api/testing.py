@@ -12,7 +12,7 @@ from app.schemas.testing import DetectionTestRunOut, DetectionTestSuite
 from app.services.testing import compare_regression, run_query_contract_suite
 
 router = APIRouter(prefix="/api/v1/rules", tags=["detection testing"])
-DbSession = Annotated[Session, Depends(get_db)]
+DbSession = Annotated[Session, Depends(get_db, scope="function")]
 
 
 @router.post("/{candidate_id}/test-runs", response_model=DetectionTestRunOut, status_code=status.HTTP_201_CREATED)
