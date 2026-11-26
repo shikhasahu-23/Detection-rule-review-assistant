@@ -36,13 +36,15 @@ jobs:
           python-version: "3.12"
       - name: Refresh authoritative public sources
         run: python scripts/refresh_static_intelligence.py
+      - name: Refresh public cyber news from RSS sources
+        run: python scripts/refresh_public_news.py
       - name: Validate refreshed datasets
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
           root = Path("frontend/public/data")
-          for name in ("summary.json", "indicators.json", "feeds.json", "attack-techniques.json"):
+          for name in ("summary.json", "indicators.json", "feeds.json", "attack-techniques.json", "cyber-news.json"):
               value = json.loads((root / name).read_text())
               assert value is not None, name
           assert json.loads((root / "indicators.json").read_text())
@@ -54,7 +56,7 @@ jobs:
           set -euo pipefail
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add frontend/public/data/summary.json frontend/public/data/indicators.json frontend/public/data/feeds.json frontend/public/data/attack-techniques.json
+          git add frontend/public/data/summary.json frontend/public/data/indicators.json frontend/public/data/feeds.json frontend/public/data/attack-techniques.json frontend/public/data/cyber-news.json
           if ! git diff --cached --quiet; then
             git commit -m "chore(intel): refresh CISA KEV and MITRE ATT&CK datasets"
             for attempt in 1 2 3; do
@@ -99,7 +101,7 @@ jobs:
         run: |
           set -euo pipefail
           BASE="https://shikhasahu-23.github.io/ThreatWeave"
-          for path in "/" "/data/summary.json" "/data/indicators.json" "/data/feeds.json" "/data/attack-techniques.json"; do
+          for path in "/" "/data/summary.json" "/data/indicators.json" "/data/feeds.json" "/data/attack-techniques.json" "/data/cyber-news.json"; do
             curl --fail --silent --show-error --retry 5 --retry-delay 5 "${BASE}${path}" -o /tmp/published
             test -s /tmp/published
             echo "PASS ${path}"
