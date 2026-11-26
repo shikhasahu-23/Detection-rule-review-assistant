@@ -76,6 +76,55 @@ type ThreatGraph = { nodes: ThreatNode[]; edges: ThreatEdge[]; truncated: boolea
 type CyberNews = { id:string; headline:string; summary:string; impact:string; severity:string; source:string; url:string; published_at:string };
 type Opportunity = { intent_id: string; title: string; severity: string; status: string; target_platforms: string[]; association_type: string; indicators: { indicator_id: string; indicator_type: string; value: string; confidence: number; severity: string; freshness: string; evidence_count: number }[]; matched_techniques: string[]; matched_cves: string[]; indicator_count: number; evidence_count: number; rationale: string };
 
+const LOCAL_INTENTS_KEY = "threatweave:local-detection-intents:v1";
+const LOCAL_RULES_KEY = "threatweave:local-rule-drafts:v1";
+const readBrowserDrafts = <T,>(key: string): T[] => {
+  try {
+    if (typeof window === "undefined") return [];
+    const value = window.localStorage.getItem(key);
+    return value ? JSON.parse(value) as T[] : [];
+  } catch { return []; }
+};
+const writeBrowserDrafts = <T,>(key: string, value: T[]) => {
+  if (typeof window === "undefined") throw new Error("Browser storage is unavailable.");
+  window.localStorage.setItem(key, JSON.stringify(value));
+};
+const buildLocalQueries = (intent: DetectionIntent, platform: string, version: number): RuleCandidate => {
+  const terms = [...new Set((intent.title + " " + intent.description + " " + intent.behavior).toLowerCase().match(/[a-z0-9]{3,}/g) || [])
+    .filter(word => !["the","and","for","with","that","this","from","when","into","should","detect","detection","activity","system","using"].includes(word))].slice(0, 8);
+  const safe = (value: string) => value.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  const quoted = terms.map(safe);
+  let query = "";
+  if (platform === "splunk") {
+    query = 'index=YOUR_INDEX sourcetype=YOUR_PROCESS_TELEMETRY\n| eval searchable=lower(coalesce(process_name,"")." ".coalesce(command_line,"")." ".coalesce(parent_process_name,""))\n| where ' +
+      (quoted.length ? quoted.map(term => 'like(searchable, "%' + term + '%")').join(" OR ") : "isnotnull(process_name)") +
+      '\n| table _time host user process_name parent_process_name command_line destination_ip\n| sort - _time\n| head 200';
+  } else if (platform === "sentinel") {
+    query = '// Replace table/field names to match your Sentinel connectors.\nDeviceProcessEvents\n| extend SearchText = tolower(strcat(ProcessCommandLine, " ", FileName, " ", InitiatingProcessFileName))\n| where ' +
+      (quoted.length ? quoted.map(term => 'SearchText contains "' + term + '"').join(" or ") : "isnotempty(ProcessCommandLine)") +
+      '\n| project Timestamp, DeviceName, AccountName, FileName, ProcessCommandLine, InitiatingProcessFileName\n| order by Timestamp desc';
+  } else if (platform === "chronicle") {
+    query = '// YARA-L 2.0 starter. Confirm UDM fields and event types for your tenant.\nrule threatweave_' + intent.id.replace(/[^a-zA-Z0-9_]/g, "_").slice(-24) + ' {\n  meta:\n    author = "ThreatWeave"\n    description = "' + safe(intent.title) + '"\n    severity = "' + safe(intent.severity) + '"\n  events:\n    $e.metadata.event_type = "PROCESS_LAUNCH"\n' +
+      (quoted.length ? quoted.map(term => '    $e.principal.process.command_line = /(?i)' + term + '/').join("\n") : '    $e.principal.process.command_line != ""') +
+      '\n  condition:\n    $e\n}';
+  } else {
+    query = 'title: "' + safe(intent.title) + '"\nid: ' + intent.id + '\nstatus: experimental\ndescription: "' + safe(intent.description || intent.behavior || "Review and tune this detection for your telemetry.") + '"\nauthor: ThreatWeave\ndate: ' + new Date().toISOString().slice(0, 10) +
+      '\ntags:\n  - attack.' + (intent.attack_techniques?.[0] || "tactic_id_unknown").toLowerCase() +
+      '\nlogsource:\n  category: process_creation\n  product: windows\ndetection:\n  selection:\n    CommandLine|contains:\n' +
+      (quoted.length ? quoted : ["REPLACE_WITH_BEHAVIOR_KEYWORD"]).map(term => '      - "' + term + '"').join("\n") +
+      '\n  condition: selection\nfalsepositives:\n  - Legitimate administrative activity\nlevel: medium';
+  }
+  return {
+    id: "local-" + intent.id + "-" + platform + "-v" + version, intent_id: intent.id,
+    name: intent.title + " · " + platform, platform, query, version,
+    status: "draft", validation_status: "not_validated",
+    validation_report: { errors: [], warnings: [{ code: "template_review_required", message: "Starter template only. Map fields, validate syntax and test against representative telemetry before deployment." }], is_deployable: false, telemetry_coverage: { score: null, status: "not_assessed", matched_requirements: 0, total_requirements: 0 } },
+    generation_metadata: { provider: "local-template", model: "deterministic-browser-template", prompt_version: "1", generated_at: new Date().toISOString(), validation_scope: "not_validated" },
+    generator: "browser-template",
+  };
+};
+
+
 const nav = [
   { label: "Overview", icon: Layers3 },
   { label: "Threat intelligence", icon: Radar },
@@ -234,11 +283,14 @@ function App() {
       const response = await localApi(`/api/v1/detection-intents?limit=100`);
       if (!response.ok) throw new Error("Unable to load detection intents.");
       const items: DetectionIntent[] = await response.json();
-      setIntents(items);
+      const mergedIntents = [...readBrowserDrafts<DetectionIntent>(LOCAL_INTENTS_KEY), ...items].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index);
+      setIntents(mergedIntents);
       if (page === "Rule library") {
         const rulesResponse = await localApi(`/api/v1/rules?limit=100&offset=${libraryOffset}`);
         if (!rulesResponse.ok) throw new Error("Unable to load the rule library.");
-        setCandidates(await rulesResponse.json());
+        const staticRules: RuleCandidate[] = await rulesResponse.json();
+        const localRules = readBrowserDrafts<RuleCandidate>(LOCAL_RULES_KEY);
+        setCandidates([...localRules, ...staticRules].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index));
         return;
       }
       const currentId = selectedIntentId || items[0]?.id || "";
@@ -247,7 +299,8 @@ function App() {
         const rulesResponse = await localApi(`/api/v1/detection-intents/${currentId}/candidates`);
         if (!rulesResponse.ok) throw new Error("Unable to load rule candidates.");
         const loadedCandidates: RuleCandidate[] = await rulesResponse.json();
-        setCandidates(loadedCandidates);
+        const localRules = readBrowserDrafts<RuleCandidate>(LOCAL_RULES_KEY).filter(item => item.intent_id === currentId);
+        setCandidates([...localRules, ...loadedCandidates].filter((item, index, all) => all.findIndex(other => other.id === item.id) === index));
         const history = await Promise.all(loadedCandidates.slice(0, 20).map(async candidate => {
           const response = await localApi(`/api/v1/rules/${candidate.id}/test-runs`);
           if (!response.ok) return null;
@@ -268,44 +321,48 @@ function App() {
     if (page === "Rule generator" || page === "Rule library") void loadDetectionData();
   }, [page, loadDetectionData]);
 
+
   const createIntent = async () => {
+    const title = intentTitle.trim();
+    if (!title) { setError("Add a detection name before saving."); return; }
+    if (!intentDescription.trim() && !intentBehavior.trim()) { setError("Add a description or behavior so the query templates have useful context."); return; }
+    if (!targetPlatforms.length) { setError("Select at least one query language."); return; }
     setCreatingIntent(true); setError(""); setNotice("");
     try {
-      const response = await localApi(`/api/v1/detection-intents`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: intentTitle, description: intentDescription, behavior: intentBehavior,
-          severity: "medium", target_platforms: targetPlatforms,
-          attack_techniques: attackTechniqueIds.split(",").map(value=>value.trim()).filter(Boolean),
-          required_telemetry: [{ source: "endpoint", description: "Process creation and network telemetry", required_fields: ["process_name", "command_line", "destination_ip"] }],
-          test_scenarios: [],
-        }),
-      });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.detail || "Unable to create detection intent.");
+      const intent: DetectionIntent = {
+        id: "local-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8),
+        title, description: intentDescription.trim(), behavior: intentBehavior.trim(),
+        severity: "medium", target_platforms: [...targetPlatforms],
+        attack_techniques: attackTechniqueIds.split(",").map(value => value.trim().toUpperCase()).filter(Boolean),
+        status: "draft",
+      };
+      const saved = readBrowserDrafts<DetectionIntent>(LOCAL_INTENTS_KEY);
+      writeBrowserDrafts(LOCAL_INTENTS_KEY, [intent, ...saved.filter(item => item.id !== intent.id)]);
+      setIntents(current => [intent, ...current.filter(item => item.id !== intent.id)]);
       setIntentTitle(""); setIntentDescription(""); setIntentBehavior(""); setAttackTechniqueIds("");
-      setSelectedIntentId(body.id);
-      setNotice("Detection intent saved. You can now generate platform-specific candidates.");
-      await loadDetectionData();
+      setSelectedIntentId(intent.id);
+      setNotice("Detection intent saved in this browser. It remains available on this device and browser; it is not synced to a shared server.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to create detection intent.");
+      setError(e instanceof Error ? e.message : "Unable to save this intent in browser storage.");
     } finally { setCreatingIntent(false); }
   };
 
   const generateRules = async () => {
-    if (!selectedIntentId) return;
+    const intent = intents.find(item => item.id === selectedIntentId);
+    if (!intent) { setError("Select or save a detection intent first."); return; }
+    if (!targetPlatforms.length) { setError("Select at least one query language."); return; }
     setGenerating(true); setError(""); setNotice("");
     try {
-      const response = await localApi(`/api/v1/detection-intents/${selectedIntentId}/generate`, {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target_platforms: targetPlatforms }),
+      const existing = readBrowserDrafts<RuleCandidate>(LOCAL_RULES_KEY);
+      const generated = targetPlatforms.map(platform => {
+        const latest = [...existing, ...candidates].filter(item => item.intent_id === intent.id && item.platform === platform).reduce((max, item) => Math.max(max, item.version || 0), 0);
+        return buildLocalQueries(intent, platform, latest + 1);
       });
-      const body = await response.json();
-      if (!response.ok) throw new Error(body.detail || "Candidate generation failed.");
-      setNotice(`${body.length} ready-to-copy query set(s) generated across your selected platforms.`);
-      await loadDetectionData();
+      writeBrowserDrafts(LOCAL_RULES_KEY, [...generated, ...existing.filter(item => !generated.some(next => next.id === item.id))]);
+      setCandidates(current => [...generated, ...current.filter(item => !generated.some(next => next.id === item.id))]);
+      setNotice(generated.length + " query draft(s) generated locally. Review field mappings, syntax and telemetry before using them in production.");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Candidate generation failed.");
+      setError(e instanceof Error ? e.message : "Unable to save generated queries in browser storage.");
     } finally { setGenerating(false); }
   };
 
@@ -597,7 +654,7 @@ function App() {
         {page === "Threat intelligence" && <div className="feed-actions"><button disabled title="Available in a backend deployment"><Network size={16} className={pipelineQueued ? "spin" : ""}/>{pipelineQueued ? "Queueing…" : "Run full pipeline"}</button><button disabled title="Scheduled refresh runs daily through GitHub Actions"><RefreshCw size={16} className={syncing ? "spin" : ""}/>{syncing ? "Syncing CISA…" : "Sync CISA KEV"}</button><button disabled title="NVD is not part of the current static refresh"><RefreshCw size={16} className={syncingNvd ? "spin" : ""}/>{syncingNvd ? "Syncing NVD…" : "Sync NVD CVEs"}</button><label className="upload-button" aria-disabled="true" title="CSV import requires a backend">CSV import unavailable<input type="file" accept=".csv,text/csv" disabled onChange={e=>{const input=e.currentTarget;const file=input.files?.[0];input.value="";if(file)void importCsv(file);}}/></label></div>}
         {page === "ATT&CK catalog" && <button disabled title="ATT&CK refresh runs daily through GitHub Actions"><RefreshCw size={16} className={syncingAttack ? "spin" : ""}/>{syncingAttack ? "Syncing catalog…" : "Sync ATT&CK"}</button>}
       </section>
-      <div className="notice"><AlertTriangle size={16}/> Read-only portfolio snapshot. Public CISA KEV and MITRE ATT&amp;CK data refresh daily at 08:00 IST; imports, manual sync and persistent writes require a backend and are disabled in this GitHub Pages deployment.</div>\n      {error && <div className="notice error"><AlertTriangle size={16}/>{error}<button onClick={loadData}>Retry</button></div>}
+      <div className="notice"><AlertTriangle size={16}/> Portfolio snapshot. Public CISA KEV and MITRE ATT&amp;CK data refresh daily at 08:00 IST. Detection intents and query drafts can be saved locally in this browser; they are not synced across devices. Shared storage, live ingestion and server-side testing require a backend.</div>\n      {error && <div className="notice error"><AlertTriangle size={16}/>{error}<button onClick={loadData}>Retry</button></div>}
       {notice && <div className="notice success"><CheckCircle2 size={16}/>{notice}</div>}
       {page === "Cyber news" ? <>
         <section className="banner"><Newspaper/><div><b>Cybersecurity headlines from trusted public sources</b><p>Short summaries, practical impact and severity labels to help you scan what matters.</p></div><span>NOT INCLUDED</span></section>
@@ -770,14 +827,14 @@ function App() {
               <small className="muted">Tip: mention known behaviors or tools (for example PowerShell, certutil or encoded commands) to make the free templates more specific.</small>
               <label>MITRE ATT&CK TECHNIQUE IDS (OPTIONAL)</label><input value={attackTechniqueIds} onChange={e=>setAttackTechniqueIds(e.target.value)} placeholder="T1059.001, T1105"/>
               <label>QUERY LANGUAGES</label><div className="platform-options">{["splunk","sentinel","chronicle","sigma"].map(platform=><label className={"platform-choice platform-"+platform} key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/><span>{platform==="sentinel"?"Microsoft Sentinel KQL":platform==="chronicle"?"Google SecOps YARA-L":platform==="sigma"?"Sigma YAML":"Splunk SPL"}</span></label>)}</div>
-              <button className="primary-action" disabled title="Saving detection intents requires a backend">{creatingIntent?"Saving intent…":"Save detection intent"}</button>
+              <button className="primary-action" onClick={createIntent} disabled={creatingIntent}>{creatingIntent?"Saving intent…":"Save detection intent"}</button>
             </div>
           </article>
           <article className="panel"><div className="panelhead"><div><b>Generate candidates</b><p>Build drafts locally from free, deterministic platform templates.</p></div></div>
             <div className="intent-form">
               <label>SAVED DETECTION INTENT</label><select value={selectedIntentId} onChange={e=>{const id=e.target.value;setSelectedIntentId(id);const found=intents.find(x=>x.id===id);if(found)setTargetPlatforms(found.target_platforms);}}><option value="">Select a detection intent</option>{intents.map(item=><option key={item.id} value={item.id}>{item.title}</option>)}</select>
               <label>GENERATE QUERIES FOR</label><div className="platform-options">{["splunk","sentinel","chronicle","sigma"].map(platform=><label className={"platform-choice platform-"+platform} key={platform}><input type="checkbox" checked={targetPlatforms.includes(platform)} onChange={e=>setTargetPlatforms(old=>e.target.checked?[...old,platform]:old.filter(x=>x!==platform))}/><span>{platform==="sentinel"?"Sentinel KQL":platform==="chronicle"?"Chronicle YARA-L":platform==="sigma"?"Sigma YAML":"Splunk SPL"}</span></label>)}</div>
-              <button className="primary-action" disabled title="Rule generation requires a backend"><Sparkles size={15}/>{generating?"Generating…":"Generate queries"}</button>
+              <button className="primary-action" onClick={generateRules} disabled={generating || !selectedIntentId || targetPlatforms.length === 0}><Sparkles size={15}/>{generating?"Generating…":"Generate queries"}</button>
               <p className="muted">One click generates all selected languages. No review queue or approval workflow.</p>
             </div>
           </article>
