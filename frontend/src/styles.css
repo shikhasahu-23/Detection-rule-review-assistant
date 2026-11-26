@@ -123,3 +123,17 @@
 .legend-dot{display:inline-block;width:7px;height:7px}.legend-blue{background:#4ba5ff}.legend-red{background:#ff727d}.legend-violet{background:#b08aff}.legend-green{background:#56d6a0}.legend-amber{background:#e7b75c}
 @media(max-width:1000px){.graph-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.graph-explorer-grid{grid-template-columns:1fr}.graph-detail-panel{position:static}.graph-entity-list{max-height:520px}}
 @media(max-width:650px){.graph-overview{padding:12px}.graph-overview-grid{grid-template-columns:1fr}.graph-kpis{gap:7px}.graph-kpi{padding:10px}.graph-kpi>strong{font-size:23px}.graph-entity-list{grid-template-columns:1fr;max-height:unset}.graph-overview-head{align-items:flex-start}.graph-overview-head button{font-size:9px}.graph-filterbar select{max-width:100%;flex:1 1 145px}.graph-result-count{width:100%;margin:2px 0 0}.graph-detail-panel{padding:12px}}
+
+/* Threat graph risk metadata */
+.confidence-unknown{color:#9aaabd}
+.severity-chip{display:inline-flex;align-items:center;width:max-content;padding:3px 6px;border-radius:4px;font-size:7px;font-weight:800;text-transform:uppercase;letter-spacing:.45px}
+.severity-critical{background:#4b202d;color:#ff9ba8}
+.severity-high{background:#4b2a20;color:#ffad82}
+.severity-medium{background:#493c20;color:#f1d17e}
+.severity-low{background:#183b32;color:#8de0bd}
+.severity-unknown{background:#263448;color:#a6b5c8}
+.graph-risk-grid{display:grid;grid-template-columns:minmax(90px,.65fr) minmax(0,1.35fr);gap:9px;margin:10px 0 14px}
+.graph-risk-grid>div{min-width:0;padding:9px;border:1px solid #293e58;border-radius:7px;background:#0d1b2c}
+.graph-risk-grid>div>span{display:block;margin-bottom:6px;font-size:7px;font-weight:800;letter-spacing:.7px;color:#849bb5}
+.graph-risk-grid p{margin:0;font-size:9px;line-height:1.5;color:#c4d2e2;overflow-wrap:anywhere}
+.graph-entity-bottom{flex-wrap:wrap}
