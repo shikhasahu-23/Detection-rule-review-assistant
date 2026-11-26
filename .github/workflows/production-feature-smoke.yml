@@ -30,6 +30,10 @@ jobs:
               path = root / name
               assert path.is_file() and path.stat().st_size > 0, f"Missing/empty {name}"
               json.loads(path.read_text())
+          history = []
+          for n in range(1, 12):
+              history.extend(json.loads((root / f"indicators-history-{n:02d}.json").read_text()))
+          assert len(history) == 5225, f"Expected 5,225 historical indicators, got {len(history)}"
           rules = []
           for part in range(1, 7):
               rows = json.loads((root / f"rules-{part}.json").read_text())
