@@ -1,1 +1,1 @@
-{"indicators_total":1805,"active_indicators":1805,"sources_total":2,"latest_run":{"source":"CISA KEV + MITRE ATT&CK","status":"succeeded","started_at":"2026-11-26T15:43:07.839665+00:00","records_seen":2511,"indicators_created":1805}}
+{"indicators_total":1805,"active_indicators":1805,"sources_total":2,"latest_run":{"source":"CISA KEV + MITRE ATT&CK","status":"succeeded","started_at":"2026-11-27T11:06:00.797031+00:00","records_seen":2511,"indicators_created":1805}}
